@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cocos Simulator</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: Arial, sans-serif;
+        }
+        
+        #gameContainer {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        #canvas {
+            border: 1px solid #333;
+            background-color: #000;
+        }
+        
+        #status {
+            color: white;
+            margin-top: 10px;
+            text-align: center;
+        }
+        
+        #progress {
+            width: 300px;
+            height: 20px;
+            background-color: #333;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        
+        #progressBar {
+            height: 100%;
+            background-color: #4CAF50;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="canvas" width="800" height="600"></canvas>
+        <div id="status">Loading...</div>
+        <div id="progress">
+            <div id="progressBar"></div>
+        </div>
+    </div>
+
+    <script>
+        var Module = {
+            canvas: (function() {
+                var canvas = document.getElementById('canvas');
+                canvas.addEventListener("webglcontextlost", function(e) {
+                    alert('WebGL context lost. You will need to reload the page.');
+                    e.preventDefault();
+                }, false);
+                return canvas;
+            })(),
+            
+            setStatus: function(text) {
+                if (!Module.setStatus.last) Module.setStatus.last = { time: Date.now(), text: '' };
+                if (text === Module.setStatus.last.text) return;
+                var m = text.match(/([^(]+)\((\d+(\.\d+)?)\/(\d+)\)/);
+                var now = Date.now();
+                if (m && now - Module.setStatus.last.time < 30) return; // if this is a progress update, skip it if too soon
+                Module.setStatus.last.time = now;
+                Module.setStatus.last.text = text;
+                document.getElementById('status').innerHTML = text;
+            },
+            
+            totalDependencies: 0,
+            
+            monitorRunDependencies: function(left) {
+                this.totalDependencies = Math.max(this.totalDependencies, left);
+                var progressBar = document.getElementById('progressBar');
+                if (left == 0) {
+                    document.getElementById('status').innerHTML = 'All downloads complete.';
+                    progressBar.style.width = '100%';
+                } else {
+                    var progress = ((this.totalDependencies - left) / this.totalDependencies) * 100;
+                    progressBar.style.width = progress + '%';
+                    document.getElementById('status').innerHTML = 'Downloading... (' + (this.totalDependencies - left) + '/' + this.totalDependencies + ')';
+                }
+            }
+        };
+        
+        Module.setStatus('Downloading...');
+        
+        window.onerror = function() {
+            Module.setStatus('Exception thrown, see JavaScript console');
+            document.getElementById('status').style.color = 'red';
+            Module.setStatus = function(text) {
+                if (text) console.error('[post-exception status] ' + text);
+            };
+        };
+    </script>
+    
+    <!-- The generated JavaScript file will be included here -->
+    <script async type="text/javascript" src="SimulatorApp.js"></script>
+</body>
+</html>
