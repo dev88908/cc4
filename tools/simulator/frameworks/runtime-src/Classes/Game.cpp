@@ -36,12 +36,19 @@
 #elif (CC_PLATFORM == CC_PLATFORM_MACOS)
     #include <CoreGraphics/CGDisplayConfiguration.h>
     #include "../proj.ios_mac/mac/SimulatorApp.h"
+#elif (CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN)
+    #include "../proj.wasm/SimulatorApp.h"
 #endif
 
 #include "ide-support/CodeIDESupport.h"
 #include "ide-support/RuntimeJsImpl.h"
-#include "runtime/ConfigParser.h"
-#include "runtime/Runtime.h"
+#if (CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN)
+    #include "runtime/ConfigParser-wasm.h"
+    #include "runtime/Runtime-wasm.h"
+#else
+    #include "runtime/ConfigParser.h"
+    #include "runtime/Runtime.h"
+#endif
 
 
 using namespace std;
@@ -49,8 +56,10 @@ Game::Game() {
 }
 
 Game::~Game() {
+#if (CC_CODE_IDE_DEBUG_SUPPORT > 0)
     // NOTE:Please don't remove this call if you want to debug with Cocos Code IDE
     RuntimeEngine::getInstance()->end();
+#endif
 }
 
 int Game::init() {
@@ -68,6 +77,10 @@ int Game::init() {
         auto mainDisplayId = CGMainDisplayID();
         info.x = (CGDisplayPixelsWide(mainDisplayId) - info.width) / 2;
         info.y = (CGDisplayPixelsHigh(mainDisplayId) - info.height) / 2;
+    #elif (CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN)
+        // In WebAssembly, window position is controlled by the browser
+        info.x = 0;
+        info.y = 0;
     #endif
         info.title = "My Game";
         info.flags = cc::ISystemWindow::CC_WINDOW_SHOWN |
@@ -86,11 +99,13 @@ int Game::init() {
         return ret;
     }
 
+#if (CC_CODE_IDE_DEBUG_SUPPORT > 0)
     auto runtimeEngine = RuntimeEngine::getInstance();
     runtimeEngine->setEventTrackingEnable(true);
     auto jsRuntime = RuntimeJsImpl::create();
     runtimeEngine->addRuntime(jsRuntime, kRuntimeEngineJs);
     runtimeEngine->start();
+#endif
 
     setXXTeaKey("");
 

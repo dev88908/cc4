@@ -117,4 +117,13 @@ else
 fi
 echo ""
 
+# Check templates directory
+echo "Checking templates directory..."
+if [ -f "$NATIVE_DIR/templates/cmake/common.cmake" ]; then
+    echo "✓ templates/cmake/common.cmake found"
+else
+    echo "✗ templates/cmake/common.cmake NOT found at: $NATIVE_DIR/templates/cmake/common.cmake"
+fi
+echo ""
+
 echo "=== Path verification complete ==="

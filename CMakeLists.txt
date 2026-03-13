@@ -621,6 +621,24 @@ elseif(EMSCRIPTEN)
     cocos_source_files(
         cocos/platform/emscripten/EmscriptenPlatform.cpp
         cocos/platform/emscripten/EmscriptenPlatform.h
+        cocos/platform/emscripten/FileUtils-emscripten.cpp
+        cocos/platform/emscripten/FileUtils-emscripten.h
+        cocos/platform/empty/modules/Accelerometer.cpp
+        cocos/platform/empty/modules/Accelerometer.h
+        cocos/platform/empty/modules/Battery.cpp
+        cocos/platform/empty/modules/Battery.h
+        cocos/platform/empty/modules/Network.cpp
+        cocos/platform/empty/modules/Network.h
+        cocos/platform/empty/modules/Screen.cpp
+        cocos/platform/empty/modules/Screen.h
+        cocos/platform/empty/modules/System.cpp
+        cocos/platform/empty/modules/System.h
+        cocos/platform/empty/modules/SystemWindow.cpp
+        cocos/platform/empty/modules/SystemWindow.h
+        cocos/platform/empty/modules/SystemWindowManager.cpp
+        cocos/platform/empty/modules/SystemWindowManager.h
+        cocos/platform/empty/modules/Vibrator.cpp
+        cocos/platform/empty/modules/Vibrator.h
     )
 endif()
 
@@ -669,7 +687,7 @@ cocos_source_files(
     cocos/platform/interfaces/modules/canvas/CanvasRenderingContext2D.h
     cocos/platform/interfaces/modules/canvas/ICanvasRenderingContext2D.h
 )
-if(USE_SERVER_MODE)
+if(USE_SERVER_MODE OR EMSCRIPTEN)
     cocos_source_files(
         cocos/platform/empty/modules/CanvasRenderingContext2DDelegate.cpp
         cocos/platform/empty/modules/CanvasRenderingContext2DDelegate.h
@@ -1136,6 +1154,13 @@ if(NOT APPLE AND USE_SOCKET)
     endif()
 endif()
 
+if(EMSCRIPTEN)
+    cocos_source_files(
+        cocos/network/Downloader-emscripten.cpp
+        cocos/network/Downloader-emscripten.h
+    )
+endif()
+
 if(WINDOWS OR LINUX OR QNX OR OPENHARMONY)
     cocos_source_files(
         NO_WERROR    cocos/network/Downloader-curl.cpp
@@ -1146,6 +1171,10 @@ endif()
 if(WINDOWS OR MACOSX OR LINUX OR QNX OR OPENHARMONY)
     cocos_source_files(
         NO_WERROR   NO_UBUILD   cocos/network/HttpClient.cpp
+    )
+elseif(EMSCRIPTEN)
+    cocos_source_files(
+        NO_WERROR   NO_UBUILD   cocos/network/HttpClient-emscripten.cpp
     )
 endif()
 
@@ -2938,6 +2967,10 @@ elseif(LINUX)
     cocos_source_files(
         NO_WERROR    cocos/bindings/manual/jsb_platform_linux.cpp
     )
+elseif(EMSCRIPTEN)
+    cocos_source_files(
+        NO_WERROR    cocos/bindings/manual/jsb_platform_emscripten.cpp
+    )
 endif()
 
 ############# module bindings
@@ -3053,16 +3086,24 @@ if(USE_SE_JSVM)
 
     if (NOT OPENHARMONY)
         include_directories(${CWD}/cocos/bindings/jswrapper/jsvm-v8-backend)
-        cocos_source_files(MODULE ccbindings
-            cocos/bindings/jswrapper/jsvm-v8-backend/js_native_api_v8.cc
-            cocos/bindings/jswrapper/jsvm-v8-backend/js_native_api_v8.h
-            cocos/bindings/jswrapper/jsvm-v8-backend/js_native_api_v8_internals.h
-            cocos/bindings/jswrapper/jsvm-v8-backend/jsvm.h
-            cocos/bindings/jswrapper/jsvm-v8-backend/jsvm_types.h
-            cocos/bindings/jswrapper/jsvm-v8-backend/util.h
-            cocos/bindings/jswrapper/jsvm-v8-backend/callback_queue-inl.h
-            cocos/bindings/jswrapper/jsvm-v8-backend/callback_queue.h
-        )
+        if (EMSCRIPTEN)
+            cocos_source_files(MODULE ccbindings
+                cocos/bindings/jswrapper/jsvm-v8-backend/jsvm.h
+                cocos/bindings/jswrapper/jsvm-v8-backend/jsvm_types.h
+                cocos/bindings/jswrapper/jsvm-v8-backend/jsvm-stub-emscripten.cpp
+            )
+        elseif (NOT EMSCRIPTEN)
+            cocos_source_files(MODULE ccbindings
+                cocos/bindings/jswrapper/jsvm-v8-backend/js_native_api_v8.cc
+                cocos/bindings/jswrapper/jsvm-v8-backend/js_native_api_v8.h
+                cocos/bindings/jswrapper/jsvm-v8-backend/js_native_api_v8_internals.h
+                cocos/bindings/jswrapper/jsvm-v8-backend/jsvm.h
+                cocos/bindings/jswrapper/jsvm-v8-backend/jsvm_types.h
+                cocos/bindings/jswrapper/jsvm-v8-backend/util.h
+                cocos/bindings/jswrapper/jsvm-v8-backend/callback_queue-inl.h
+                cocos/bindings/jswrapper/jsvm-v8-backend/callback_queue.h
+            )
+        endif()
     endif()
 
 endif()

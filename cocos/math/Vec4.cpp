@@ -337,6 +337,18 @@ ccstd::hash_t Hasher<Vec4>::operator()(const Vec4 &v) const {
     return ccstd::hash_range(reinterpret_cast<const uint64_t *>(&v.x),
                              reinterpret_cast<const uint64_t *>(&v.x + 4));
 }
+#else
+// Stub implementation for Emscripten
+template <>
+ccstd::hash_t Hasher<Vec4>::operator()(const Vec4 &v) const {
+    // Simple hash combining x, y, z, w
+    ccstd::hash_t h = 0;
+    h ^= std::hash<float>{}(v.x) + 0x9e3779b9 + (h << 6) + (h >> 2);
+    h ^= std::hash<float>{}(v.y) + 0x9e3779b9 + (h << 6) + (h >> 2);
+    h ^= std::hash<float>{}(v.z) + 0x9e3779b9 + (h << 6) + (h >> 2);
+    h ^= std::hash<float>{}(v.w) + 0x9e3779b9 + (h << 6) + (h >> 2);
+    return h;
+}
 #endif
 
 NS_CC_MATH_END

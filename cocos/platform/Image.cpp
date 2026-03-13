@@ -32,7 +32,11 @@
 #include "gfx-base/GFXDef-common.h"
 
 #if CC_USE_JPEG
-    #include "jpeg/jpeglib.h"
+    #if CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN
+        #include <jpeglib.h>  // Emscripten provides jpeglib.h directly
+    #else
+        #include "jpeg/jpeglib.h"
+    #endif
 #endif // CC_USE_JPEG
 
 #include "base/Data.h"
@@ -42,8 +46,8 @@
 
 extern "C" {
 #if CC_USE_PNG
-    #if __OHOS__ || __LINUX__ || __QNX__
-        #include "png.h"
+    #if __OHOS__ || __LINUX__ || __QNX__ || (CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN)
+        #include <png.h>  // Emscripten, OHOS, Linux, QNX use system png.h
     #else
         #include "png/png.h"
     #endif

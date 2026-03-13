@@ -62,8 +62,10 @@ if [ -z "$EMSCRIPTEN" ]; then
     echo "EMSCRIPTEN path auto-detected: $EMSCRIPTEN"
 fi
 
-# Create build directory
-BUILD_DIR="build-wasm"
+# Create build directory in the runtime-src folder
+RUNTIME_SRC_DIR="$SCRIPT_DIR"
+BUILD_DIR="$RUNTIME_SRC_DIR/build-wasm"
+
 if [ -d "$BUILD_DIR" ]; then
     echo "Cleaning existing build directory..."
     rm -rf "$BUILD_DIR"
@@ -73,7 +75,7 @@ mkdir -p "$BUILD_DIR"
 cd "$BUILD_DIR"
 
 # Copy the WebAssembly specific CMakeLists.txt
-cp ../CMakeLists-wasm.txt ./CMakeLists.txt
+cp "$RUNTIME_SRC_DIR/CMakeLists-wasm.txt" ./CMakeLists.txt
 
 # Configure with Emscripten
 echo "Configuring WebAssembly build..."

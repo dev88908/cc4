@@ -5,8 +5,10 @@
 #include <cmath>
 #include <assert.h>
 
+#if !defined(__EMSCRIPTEN__)
 #include <execinfo.h>  // for backtrace
 #include <cxxabi.h>   // for demangling
+#endif
 
 #include "v8-debug.h"
 #include "v8-internal.h"

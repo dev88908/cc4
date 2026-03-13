@@ -251,17 +251,29 @@ inline bool sevalue_to_native(const se::Value &from, int64_t *to, se::Object * /
     return true;
 }
 
-#if CC_PLATFORM == CC_PLATFORM_IOS || CC_PLATFORM == CC_PLATFORM_MACOS
+#if CC_PLATFORM == CC_PLATFORM_IOS || CC_PLATFORM == CC_PLATFORM_MACOS || CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN
 inline bool sevalue_to_native(const se::Value &from, unsigned long *to, se::Object * /*ctx*/) { // NOLINT(readability-identifier-naming)
+#if CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN
+    // on wasm: unsigned long is 32-bit
+    static_assert(sizeof(*to) == 4, "");
+    *to = static_cast<unsigned long>(from.toUint32());
+#else
     // on mac: unsiged long  === uintptr_t
     static_assert(sizeof(*to) == 8, "");
     *to = static_cast<unsigned long>(from.toUint64());
+#endif
     return true;
 }
 inline bool sevalue_to_native(const se::Value &from, long *to, se::Object * /*ctx*/) { // NOLINT(readability-identifier-naming)
+#if CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN
+    // on wasm: long is 32-bit
+    static_assert(sizeof(*to) == 4, "");
+    *to = static_cast<long>(from.toInt32());
+#else
     // on mac: unsiged long  === uintptr_t
     static_assert(sizeof(*to) == 8, "");
     *to = static_cast<long>(from.toUint64());
+#endif
     return true;
 }
 #endif

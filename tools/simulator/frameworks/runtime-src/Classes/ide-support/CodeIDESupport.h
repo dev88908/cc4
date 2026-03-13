@@ -26,7 +26,14 @@
 #ifndef __CODE_IDE_SUPPORT_H__
 #define __CODE_IDE_SUPPORT_H__
 
+#include "cocos/base/Macros.h"
+
 // define 1 to open Cocos Code IDE support, 0 to disable
-#define CC_CODE_IDE_DEBUG_SUPPORT 1
+// Disable IDE support for WebAssembly (requires protobuf and network features)
+#if (CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN)
+    #define CC_CODE_IDE_DEBUG_SUPPORT 0
+#else
+    #define CC_CODE_IDE_DEBUG_SUPPORT 1
+#endif
 
 #endif /* __CODE_IDE_SUPPORT_H__ */
