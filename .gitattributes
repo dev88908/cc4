@@ -1,0 +1,5 @@
+tools/simulator/frameworks/runtime-src/build-wasm/SimulatorApp.data filter=lfs diff=lfs merge=lfs -text
+tools/simulator/frameworks/runtime-src/build-wasm/SimulatorApp.wasm filter=lfs diff=lfs merge=lfs -text
+tools/simulator/frameworks/runtime-src/build-wasm/libcocos_engine.a filter=lfs diff=lfs merge=lfs -text
+tools/bindings-generator/libclang/libclang.dll filter=lfs diff=lfs merge=lfs -text
+tools/bindings-generator/libclang/libclang.dylib filter=lfs diff=lfs merge=lfs -text
