@@ -37,6 +37,52 @@
     #define LOGD(...) printf(__VA_ARGS__)
 #endif
 
+// ── Emscripten: threads are not supported in single-threaded WASM ─────────────
+// Replace the entire implementation with a synchronous stub that runs tasks
+// immediately on the calling thread (or discards them if not needed).
+#ifdef __EMSCRIPTEN__
+namespace cc {
+
+LegacyThreadPool *LegacyThreadPool::_instance = nullptr;
+
+LegacyThreadPool *LegacyThreadPool::getDefaultThreadPool() {
+    if (!_instance) _instance = newFixedThreadPool(0);
+    return _instance;
+}
+void LegacyThreadPool::destroyDefaultThreadPool() { delete _instance; _instance = nullptr; }
+LegacyThreadPool *LegacyThreadPool::newCachedThreadPool(int, int, int, int, int) { return ccnew LegacyThreadPool(0, 0); }
+LegacyThreadPool *LegacyThreadPool::newFixedThreadPool(int)  { return ccnew LegacyThreadPool(0, 0); }
+LegacyThreadPool *LegacyThreadPool::newSingleThreadPool()    { return ccnew LegacyThreadPool(0, 0); }
+
+LegacyThreadPool::LegacyThreadPool(int minNum, int maxNum)
+: _minThreadNum(minNum), _maxThreadNum(maxNum) {}
+
+LegacyThreadPool::~LegacyThreadPool() {}
+
+// Run the task synchronously on the calling thread.
+void LegacyThreadPool::pushTask(const std::function<void(int)> &runnable, TaskType) {
+    runnable(0);
+}
+
+void LegacyThreadPool::stopAllTasks()            {}
+void LegacyThreadPool::stopTasksByType(TaskType) {}
+int  LegacyThreadPool::getIdleThreadNum() const  { return 0; }
+int  LegacyThreadPool::getTaskNum() const        { return 0; }
+bool LegacyThreadPool::tryShrinkPool()           { return true; }
+
+void LegacyThreadPool::init()                    {}
+void LegacyThreadPool::stop()                    {}
+void LegacyThreadPool::setThread(int)            {}
+void LegacyThreadPool::joinThread(int)           {}
+void LegacyThreadPool::setFixedSize(bool)        {}
+void LegacyThreadPool::setShrinkInterval(int)    {}
+void LegacyThreadPool::setShrinkStep(int)        {}
+void LegacyThreadPool::setStretchStep(int)       {}
+void LegacyThreadPool::stretchPool(int)          {}
+
+} // namespace cc
+#else // !__EMSCRIPTEN__ — original implementation below
+
 #define TIME_MINUS(now, prev) (std::chrono::duration_cast<std::chrono::milliseconds>((now) - (prev)).count() / 1000.0f)
 
 namespace cc {
@@ -378,3 +424,4 @@ void LegacyThreadPool::setThread(int tid) {
 }
 
 } // namespace cc
+#endif // !__EMSCRIPTEN__

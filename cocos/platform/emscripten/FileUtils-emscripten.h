@@ -39,6 +39,8 @@ public:
 protected:
     bool isFileExistInternal(const ccstd::string &filename) const override;
     bool isDirectoryExistInternal(const ccstd::string &dirPath) const override;
+    ccstd::string getStringFromFile(const ccstd::string &filename) override;
+    Data getDataFromFile(const ccstd::string &filename) override;
 };
 
 } // namespace cc

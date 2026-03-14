@@ -119,29 +119,34 @@ set(EMSCRIPTEN_COMPILE_FLAGS
     "SHELL:-s USE_WEBGL2=1"
     "SHELL:-s FULL_ES3=1"
     "SHELL:-s WASM=1"
+    "SHELL:-s FORCE_FILESYSTEM=1"
     "SHELL:-s USE_LIBJPEG=1"
     "SHELL:-s USE_LIBPNG=1"
     "SHELL:-s USE_SQLITE3=1"
 )
 
+set(SIMULATOR_ROOT ${CMAKE_CURRENT_LIST_DIR}/../../../)
 set(EMSCRIPTEN_LINK_FLAGS
     "SHELL:-s USE_SDL=2"
     "SHELL:-s USE_WEBGL2=1"
     "SHELL:-s FULL_ES3=1"
     "SHELL:-s WASM=1"
+    "SHELL:-s FORCE_FILESYSTEM=1"
     "SHELL:-s ALLOW_MEMORY_GROWTH=1"
     "SHELL:-s INITIAL_MEMORY=134217728"  # 128MB
     "SHELL:-s MAXIMUM_MEMORY=268435456"  # 256MB
     "SHELL:-s STACK_SIZE=5242880"        # 5MB
     "SHELL:-s ASYNCIFY=1"
     "SHELL:-s EXIT_RUNTIME=0"
-    "SHELL:-s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','addFunction','removeFunction']"
+    "SHELL:-s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','addFunction','removeFunction','FS','HEAP8','HEAPU8','HEAP16','HEAPU16','HEAP32','HEAPU32','HEAPF32','HEAPF64']"
     "SHELL:-s EXPORTED_FUNCTIONS=['_main','_jsvm_dispatch_callback']"
     "SHELL:-s ALLOW_TABLE_GROWTH=1"
     "SHELL:-s USE_LIBJPEG=1"
     "SHELL:-s USE_LIBPNG=1"
     "SHELL:-s USE_SQLITE3=1"
-    "SHELL:--preload-file ${CMAKE_CURRENT_LIST_DIR}/../../@/"
+    "SHELL:--preload-file ${SIMULATOR_ROOT}/main.js@main.js"
+    "SHELL:--preload-file ${SIMULATOR_ROOT}/project.json@project.json"
+    "SHELL:--preload-file ${SIMULATOR_ROOT}/jsb-adapter@jsb-adapter"
     "SHELL:--shell-file ${CMAKE_CURRENT_LIST_DIR}/../proj.wasm/index.html"
 )
 
@@ -156,7 +161,6 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
         -g3
         "SHELL:-s ASSERTIONS=2"
         "SHELL:-s GL_ASSERTIONS=1"
-        "SHELL:-s SAFE_HEAP=1"
     )
 else()
     list(APPEND EMSCRIPTEN_COMPILE_FLAGS

@@ -80,7 +80,7 @@ cp "$RUNTIME_SRC_DIR/CMakeLists.txt" ./CMakeLists.txt
 # Configure with Emscripten
 echo "Configuring WebAssembly build..."
 # emcmake automatically sets the toolchain file, so we don't need to specify it
-emcmake cmake . -DCMAKE_BUILD_TYPE=Debug
+emcmake cmake . -DCMAKE_BUILD_TYPE=Release
 
 # Build
 echo "Building WebAssembly..."
