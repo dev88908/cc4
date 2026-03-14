@@ -29,6 +29,7 @@
 #include "platform/empty/modules/Screen.h"
 #include "platform/empty/modules/System.h"
 #include "platform/empty/modules/SystemWindow.h"
+#include "platform/empty/modules/SystemWindowManager.h"
 #include "platform/empty/modules/Vibrator.h"
 #include "platform/interfaces/OSInterface.h"
 
@@ -50,6 +51,7 @@ int32_t EmscriptenPlatform::init() {
     registerInterface(std::make_shared<Network>());
     registerInterface(std::make_shared<Screen>());
     registerInterface(std::make_shared<System>());
+    registerInterface(std::make_shared<SystemWindowManager>());
     // SystemWindow requires windowId and externalHandle parameters
     // For Emscripten, we use 0 as windowId and nullptr as externalHandle
     registerInterface(std::make_shared<SystemWindow>(0, nullptr));
@@ -69,9 +71,8 @@ int32_t EmscriptenPlatform::loop() {
 }
 
 ISystemWindow *EmscriptenPlatform::createNativeWindow(uint32_t windowId, void *externalHandle) {
-    // For WebAssembly, the window is the browser canvas
-    // Return nullptr as window management is handled by the browser
-    return nullptr;
+    // For WebAssembly, create a SystemWindow backed by the browser canvas.
+    return new SystemWindow(windowId, externalHandle);
 }
 
 } // namespace cc

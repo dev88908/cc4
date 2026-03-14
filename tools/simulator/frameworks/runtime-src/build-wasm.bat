@@ -36,7 +36,7 @@ mkdir "%BUILD_DIR%"
 cd "%BUILD_DIR%"
 
 REM Copy the WebAssembly specific CMakeLists.txt
-copy ..\CMakeLists-wasm.txt .\CMakeLists.txt
+copy ..\CMakeLists.txt .\CMakeLists.txt
 
 REM Debug: Show the directory structure
 echo Current directory: %CD%

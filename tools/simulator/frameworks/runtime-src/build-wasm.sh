@@ -75,12 +75,12 @@ mkdir -p "$BUILD_DIR"
 cd "$BUILD_DIR"
 
 # Copy the WebAssembly specific CMakeLists.txt
-cp "$RUNTIME_SRC_DIR/CMakeLists-wasm.txt" ./CMakeLists.txt
+cp "$RUNTIME_SRC_DIR/CMakeLists.txt" ./CMakeLists.txt
 
 # Configure with Emscripten
 echo "Configuring WebAssembly build..."
 # emcmake automatically sets the toolchain file, so we don't need to specify it
-emcmake cmake . -DCMAKE_BUILD_TYPE=Release
+emcmake cmake . -DCMAKE_BUILD_TYPE=Debug
 
 # Build
 echo "Building WebAssembly..."
