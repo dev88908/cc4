@@ -171,22 +171,6 @@ std::string getCurAppName(void)
 {
     // get project directory
     ProjectConfig tmpConfig;
-
-    // Set default project directory to simulator folder
-    // This is relative to the app bundle location
-    NSString *simulatorDir = [[NSBundle mainBundle] executablePath];
-    simulatorDir = [simulatorDir stringByDeletingLastPathComponent]; // MacOS
-    simulatorDir = [simulatorDir stringByDeletingLastPathComponent]; // Contents
-    simulatorDir = [simulatorDir stringByDeletingLastPathComponent]; // SimulatorApp.app
-    simulatorDir = [simulatorDir stringByAppendingPathComponent:@"tools/simulator"];
-    tmpConfig.setProjectDir([simulatorDir cStringUsingEncoding:NSUTF8StringEncoding]);
-
-    // Check for COCOS_PROJECT_PATH environment variable first (can override default)
-    NSString *envProjectPath = [[NSProcessInfo processInfo] environment][@"COCOS_PROJECT_PATH"];
-    if (envProjectPath && [envProjectPath length] > 0) {
-        tmpConfig.setProjectDir([envProjectPath cStringUsingEncoding:NSUTF8StringEncoding]);
-    }
-
     NSArray *nsargs = [[NSProcessInfo processInfo] arguments];
     long n = [nsargs count];
     if (n >= 2)
@@ -269,7 +253,6 @@ std::string getCurAppName(void)
 {
     createFileUtils();
     SIMULATOR = self;
-    // Create PlayerMac singleton - result is stored internally by PlayerProtocol
     player::PlayerMac::create();
 
     _debugLogFile = 0;

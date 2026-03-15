@@ -1,5 +1,6 @@
+
 #import "ViewController.h"
-#import "cocos/platform/mac/View.h"
+#import "platform/mac/View.h"
 
 @implementation ViewController
 {
