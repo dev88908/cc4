@@ -55,6 +55,10 @@ using namespace std;
 Game::Game() {
 }
 
+Game::Game(int width, int height) {
+    // Store width and height if needed for future use
+}
+
 Game::~Game() {
 #if (CC_CODE_IDE_DEBUG_SUPPORT > 0)
     // NOTE:Please don't remove this call if you want to debug with Cocos Code IDE

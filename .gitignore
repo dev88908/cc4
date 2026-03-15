@@ -188,3 +188,5 @@ platform-nx
 
 
 **/*~
+build-mac
+tools/simulator/frameworks/runtime-src/build-wasm

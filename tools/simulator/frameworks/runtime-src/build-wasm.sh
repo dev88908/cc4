@@ -2,8 +2,25 @@
 
 # WebAssembly build script for Cocos Simulator
 # Make sure you have Emscripten SDK installed and activated
+#
+# Usage:
+#   ./build-wasm.sh          - Full build (clean + compile)
+#   ./build-wasm.sh --data   - Only regenerate data files (skip compilation)
 
 set -e
+
+# Parse arguments
+DATA_ONLY=false
+for arg in "$@"; do
+    case $arg in
+        --data|--data-only)
+            DATA_ONLY=true
+            shift
+            ;;
+        *)
+            ;;
+    esac
+done
 
 # Get the native directory (4 levels up from this script)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -66,31 +83,40 @@ fi
 RUNTIME_SRC_DIR="$SCRIPT_DIR"
 BUILD_DIR="$RUNTIME_SRC_DIR/build-wasm"
 
-if [ -d "$BUILD_DIR" ]; then
-    echo "Cleaning existing build directory..."
-    rm -rf "$BUILD_DIR"
-fi
-
-mkdir -p "$BUILD_DIR"
-cd "$BUILD_DIR"
-
-# Copy the WebAssembly specific CMakeLists.txt
-cp "$RUNTIME_SRC_DIR/CMakeLists.txt" ./CMakeLists.txt
-
-# Configure with Emscripten
-echo "Configuring WebAssembly build..."
-# emcmake automatically sets the toolchain file, so we don't need to specify it
-emcmake cmake . -DCMAKE_BUILD_TYPE=Release
-
-# Build
-echo "Building WebAssembly..."
-# Detect number of CPU cores (cross-platform)
-if command -v nproc &> /dev/null; then
-    CORES=$(nproc)
+if [ "$DATA_ONLY" = true ]; then
+    if [ ! -d "$BUILD_DIR" ]; then
+        echo "Error: Build directory not found. Run full build first."
+        exit 1
+    fi
+    echo "Regenerating data files only..."
+    cd "$BUILD_DIR"
 else
-    CORES=$(sysctl -n hw.ncpu 2>/dev/null || echo 4)
+    if [ -d "$BUILD_DIR" ]; then
+        echo "Cleaning existing build directory..."
+        rm -rf "$BUILD_DIR"
+    fi
+
+    mkdir -p "$BUILD_DIR"
+    cd "$BUILD_DIR"
+
+    # Copy the WebAssembly specific CMakeLists.txt
+    cp "$RUNTIME_SRC_DIR/CMakeLists.txt" ./CMakeLists.txt
+
+    # Configure with Emscripten
+    echo "Configuring WebAssembly build..."
+    # emcmake automatically sets the toolchain file, so we don't need to specify it
+    emcmake cmake . -DCMAKE_BUILD_TYPE=Release
+
+    # Build
+    echo "Building WebAssembly..."
+    # Detect number of CPU cores (cross-platform)
+    if command -v nproc &> /dev/null; then
+        CORES=$(nproc)
+    else
+        CORES=$(sysctl -n hw.ncpu 2>/dev/null || echo 4)
+    fi
+    emmake make -j$CORES
 fi
-emmake make -j$CORES
 
 echo "Build completed! Output files are in $BUILD_DIR/"
 echo "You can serve the files using a local HTTP server:"

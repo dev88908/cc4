@@ -1,6 +1,5 @@
-/*
 #import "ViewController.h"
-#import "platform/mac/View.h"
+#import "cocos/platform/mac/View.h"
 
 @implementation ViewController
 {
@@ -16,4 +15,3 @@
 }
 
 @end
-*/
