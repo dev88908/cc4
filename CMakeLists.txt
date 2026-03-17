@@ -3821,6 +3821,20 @@ elseif(LINUX)
         ${LINUX_GRAPHIC_LIBS}
         ${CC_EXTERNAL_LIBS}
     )
+elseif(EMSCRIPTEN)
+    target_compile_options(${ENGINE_NAME} PUBLIC
+        "SHELL:-s USE_LIBJPEG=1"
+        "SHELL:-s USE_LIBPNG=1"
+        "SHELL:-s USE_ZLIB=1"
+    )
+    target_link_options(${ENGINE_NAME} PUBLIC
+        "SHELL:-s USE_LIBJPEG=1"
+        "SHELL:-s USE_LIBPNG=1"
+        "SHELL:-s USE_ZLIB=1"
+    )
+    target_link_libraries(${ENGINE_NAME} PUBLIC
+        ${CC_EXTERNAL_LIBS}
+    )
 endif()
 
 ### set source_group for generated files

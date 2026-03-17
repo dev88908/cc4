@@ -1,5 +1,5 @@
 import { NativePackTool } from "./default";
-export type ISupportPlatform = 'mac-os' | 'mac' | 'ios' | 'android' | 'google-play' | 'ohos';
+export type ISupportPlatform = 'mac-os' | 'mac' | 'ios' | 'android' | 'google-play' | 'ohos' | 'wasm';
 export declare class NativePackToolManager {
     private PackToolMap;
     static platformToPackTool: Record<string, typeof NativePackTool>;

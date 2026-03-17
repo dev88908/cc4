@@ -1,7 +1,7 @@
 
 import { CocosParams, NativePackTool } from "./default";
 
-export type ISupportPlatform = 'mac-os' | 'mac' | 'ios' | 'android' | 'google-play' | 'ohos';
+export type ISupportPlatform = 'mac-os' | 'mac' | 'ios' | 'android' | 'google-play' | 'ohos' | 'wasm';
 const platformPackToolMap: Record<string, () => typeof NativePackTool>  = {
     ios: () => {
         return require('../platforms/ios').IOSPackTool;
@@ -26,6 +26,9 @@ const platformPackToolMap: Record<string, () => typeof NativePackTool>  = {
     },
     'huawei-agc': () => {
         return require('../platforms/huawei-agc').HuaweiAGCPackTool;
+    },
+    wasm: () => {
+        return require('../platforms/wasm').WasmPackTool;
     },
 }
 export class NativePackToolManager {

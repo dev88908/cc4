@@ -26,6 +26,9 @@ const platformPackToolMap = {
     'huawei-agc': () => {
         return require('../platforms/huawei-agc').HuaweiAGCPackTool;
     },
+    wasm: () => {
+        return require('../platforms/wasm').WasmPackTool;
+    },
 };
 class NativePackToolManager {
     constructor() {
