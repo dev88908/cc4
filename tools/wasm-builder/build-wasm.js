@@ -132,6 +132,10 @@ function getBuildPaths(opts) {
 // ─────────────────────── Config Generation ───────────────────────
 
 function generateCompileConfig(opts, paths) {
+    // 检查是否有自定义 shell 模板
+    const shellTemplatePath = ps.join(opts.enginePath, 'templates', 'wasm', 'shell.html.ejs');
+    const hasCustomShell = fs.existsSync(shellTemplatePath);
+
     return {
         platform: 'wasm',
         platformName: 'wasm',
@@ -146,6 +150,7 @@ function generateCompileConfig(opts, paths) {
         cmakePath: opts.cmakePath,
         encrypted: false,
         compressZip: false,
+        useCustomShell: hasCustomShell,
         cMakeConfig: {
             CC_USE_GLES3: opts.gles3,
             CC_USE_GLES2: opts.gles2,
@@ -173,6 +178,27 @@ function generateCMakeConfigFile(compileConfig, outputPath) {
     fs.ensureDirSync(ps.dirname(outputPath));
     fs.writeFileSync(outputPath, content, 'utf8');
     console.log(`[wasm-builder] Generated cfg.cmake at ${outputPath}`);
+}
+
+async function generateShellHtml(opts, paths) {
+    console.log('[wasm-builder] Generating custom shell HTML...');
+
+    const shellTemplatePath = ps.join(opts.enginePath, 'templates', 'wasm', 'shell.html.ejs');
+    if (!fs.existsSync(shellTemplatePath)) {
+        console.log('[wasm-builder] No custom shell template found, using Emscripten default');
+        return;
+    }
+
+    const templateStr = fs.readFileSync(shellTemplatePath, 'utf8');
+    const rendered = ejs.render(templateStr, {
+        title: opts.executableName,
+        moduleName: opts.executableName,
+    });
+
+    const outPath = ps.join(paths.nativePrjDir, `${opts.executableName}.html`);
+    fs.ensureDirSync(ps.dirname(outPath));
+    fs.writeFileSync(outPath, rendered, 'utf8');
+    console.log(`[wasm-builder] Generated shell HTML at ${outPath}`);
 }
 
 // ─────────────────────── Project Settings Reader ───────────────────────
@@ -895,6 +921,30 @@ async function stepMake(opts, paths, compileConfig) {
 
     await runCommand(opts.cmakePath, cmakeArgs, paths.nativePrjDir);
     console.log('[wasm-builder] Build completed');
+
+    // 后处理：生成自定义 HTML 替换默认的 Emscripten shell
+    await postProcessShellHtml(opts, paths);
+}
+
+async function postProcessShellHtml(opts, paths) {
+    console.log('[wasm-builder] Post-processing shell HTML...');
+
+    const shellTemplatePath = ps.join(opts.enginePath, 'templates', 'wasm', 'shell.html.ejs');
+    if (!fs.existsSync(shellTemplatePath)) {
+        console.log('[wasm-builder] No custom shell template found, using Emscripten default');
+        return;
+    }
+
+    const templateStr = fs.readFileSync(shellTemplatePath, 'utf8');
+    const rendered = ejs.render(templateStr, {
+        title: opts.executableName,
+        moduleName: opts.executableName,
+    });
+
+    const outPath = ps.join(paths.nativePrjDir, `${opts.executableName}.html`);
+    fs.ensureDirSync(ps.dirname(outPath));
+    fs.writeFileSync(outPath, rendered, 'utf8');
+    console.log(`[wasm-builder] Generated custom shell HTML at ${outPath}`);
 }
 
 async function stepRun(opts, paths, compileConfig) {
@@ -977,7 +1027,10 @@ async function main() {
         await stepMake(opts, paths, compileConfig);
     }
 
-    // Step 5: Run
+    // Step 5: Generate custom shell HTML
+    await generateShellHtml(opts, paths);
+
+    // Step 6: Run
     if (opts.run) {
         await stepRun(opts, paths, compileConfig);
     }
