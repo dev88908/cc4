@@ -51,10 +51,53 @@ class WasmPackTool extends default_1.NativePackTool {
     get emscriptenToolchainFile() {
         return ps.join(this.emsdkPath, 'upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake');
     }
+    /**
+     * Copy build resources to buildDir/data, same flow as Windows.
+     * Source priority: Windows build output (build/windows/data) -> buildAssetsDir -> jsb-link -> native.
+     */
+    async copyResourcesToData() {
+        const dataDir = ps.join(this.paths.buildDir, 'data');
+        fs.ensureDirSync(dataDir);
+        const buildCfgPath = ps.join(this.paths.platformTemplateDirInPrj, 'build-cfg.json');
+        if (!fs.existsSync(buildCfgPath)) {
+            return;
+        }
+        const buildCfg = await fs.readJSON(buildCfgPath);
+        const copyResources = buildCfg.copy_resources || [];
+        if (copyResources.length === 0) {
+            return;
+        }
+        const buildRoot = ps.dirname(this.paths.buildDir);
+        const srcCandidates = [
+            ps.join(buildRoot, 'windows', 'data'),
+            this.paths.buildAssetsDir,
+            ps.join(buildRoot, 'jsb-link'),
+            ps.join(buildRoot, 'native'),
+        ];
+        for (const srcRoot of srcCandidates) {
+            if (srcRoot && fs.existsSync(srcRoot) && fs.existsSync(ps.join(srcRoot, 'main.js'))) {
+                console.log(`[wasm] Copying resources from: ${srcRoot}`);
+                await this.copyResourcesFrom(srcRoot, dataDir, copyResources);
+                return;
+            }
+        }
+        console.warn(`[wasm] No valid source found. Tried: ${srcCandidates.filter(Boolean).join(', ')}`);
+    }
+    async copyResourcesFrom(srcRoot, dataDir, copyResources) {
+        for (const item of copyResources) {
+            const srcPath = ps.join(srcRoot, item.from);
+            const dstPath = item.to ? ps.join(dataDir, item.to) : ps.join(dataDir, ps.basename(item.from));
+            if (fs.existsSync(srcPath)) {
+                fs.ensureDirSync(ps.dirname(dstPath));
+                await utils_1.cchelper.copyRecursiveAsync(srcPath, dstPath);
+            }
+        }
+    }
     // ------------------- create ------------------- //
     async create() {
         await this.copyCommonTemplate();
         await this.copyPlatformTemplate();
+        await this.copyResourcesToData();
         await this.generateCMakeConfig();
         await this.executeCocosTemplateTask();
         await this.encryptScripts();

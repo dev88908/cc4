@@ -43,6 +43,20 @@ SystemWindow::SystemWindow(uint32_t windowId, void* externalHandle)
 
 SystemWindow::~SystemWindow() = default;
 
+bool SystemWindow::createWindow(const char* /*title*/, int x, int y, int w, int h, int /*flags*/) {
+    _width = w > 0 ? w : 800;
+    _height = h > 0 ? h : 600;
+    (void)x;
+    (void)y;
+    return true;
+}
+
+bool SystemWindow::createWindow(const char* /*title*/, int w, int h, int /*flags*/) {
+    _width = w > 0 ? w : 800;
+    _height = h > 0 ? h : 600;
+    return true;
+}
+
 uintptr_t SystemWindow::getWindowHandle() const {
     return _windowHandle;
 }

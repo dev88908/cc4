@@ -7,6 +7,11 @@ export interface IWasmParams {
     emscriptenPath?: string;
 }
 
+interface CopyResource {
+    from: string;
+    to: string;
+}
+
 export class WasmPackTool extends NativePackTool {
     params!: CocosParams<IWasmParams>;
 
@@ -37,11 +42,61 @@ export class WasmPackTool extends NativePackTool {
         return ps.join(this.emsdkPath, 'upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake');
     }
 
+    /**
+     * Copy build resources to buildDir/data, same flow as Windows.
+     * Source priority: Windows build output (build/windows/data) -> buildAssetsDir -> jsb-link -> native.
+     */
+    private async copyResourcesToData(): Promise<void> {
+        const dataDir = ps.join(this.paths.buildDir, 'data');
+        fs.ensureDirSync(dataDir);
+
+        const buildCfgPath = ps.join(this.paths.platformTemplateDirInPrj, 'build-cfg.json');
+        if (!fs.existsSync(buildCfgPath)) {
+            return;
+        }
+
+        const buildCfg = await fs.readJSON(buildCfgPath);
+        const copyResources: CopyResource[] = buildCfg.copy_resources || [];
+        if (copyResources.length === 0) {
+            return;
+        }
+
+        const buildRoot = ps.dirname(this.paths.buildDir);
+        const srcCandidates = [
+            ps.join(buildRoot, 'windows', 'data'),  // Windows build output (primary)
+            this.paths.buildAssetsDir,
+            ps.join(buildRoot, 'jsb-link'),
+            ps.join(buildRoot, 'native'),
+        ];
+
+        for (const srcRoot of srcCandidates) {
+            if (srcRoot && fs.existsSync(srcRoot) && fs.existsSync(ps.join(srcRoot, 'main.js'))) {
+                console.log(`[wasm] Copying resources from: ${srcRoot}`);
+                await this.copyResourcesFrom(srcRoot, dataDir, copyResources);
+                return;
+            }
+        }
+
+        console.warn(`[wasm] No valid source found. Tried: ${srcCandidates.filter(Boolean).join(', ')}`);
+    }
+
+    private async copyResourcesFrom(srcRoot: string, dataDir: string, copyResources: CopyResource[]): Promise<void> {
+        for (const item of copyResources) {
+            const srcPath = ps.join(srcRoot, item.from);
+            const dstPath = item.to ? ps.join(dataDir, item.to) : ps.join(dataDir, ps.basename(item.from));
+            if (fs.existsSync(srcPath)) {
+                fs.ensureDirSync(ps.dirname(dstPath));
+                await cchelper.copyRecursiveAsync(srcPath, dstPath);
+            }
+        }
+    }
+
     // ------------------- create ------------------- //
 
     async create(): Promise<boolean> {
         await this.copyCommonTemplate();
         await this.copyPlatformTemplate();
+        await this.copyResourcesToData();
         await this.generateCMakeConfig();
         await this.executeCocosTemplateTask();
 

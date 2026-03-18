@@ -87,7 +87,11 @@ bool FileUtilsEmscripten::isFileExistInternal(const ccstd::string &filename) con
     if (filename.empty()) {
         return false;
     }
-    return emscripten_fs_isFile(filename.c_str());
+    if (emscripten_fs_isFile(filename.c_str())) return true;
+    ccstd::string pathWithSlash = "/" + filename;
+    if (emscripten_fs_isFile(pathWithSlash.c_str())) return true;
+    ccstd::string pathInData = "/data/" + filename;
+    return emscripten_fs_isFile(pathInData.c_str());
 }
 
 bool FileUtilsEmscripten::isDirectoryExistInternal(const ccstd::string &dirPath) const {
@@ -101,63 +105,52 @@ ccstd::string FileUtilsEmscripten::getStringFromFile(const ccstd::string &filena
     if (filename.empty()) {
         return "";
     }
-    
-    int fileSize = emscripten_fs_getFileSize(filename.c_str());
-    
-    if (fileSize <= 0) {
-        ccstd::string pathWithSlash = "/" + filename;
-        fileSize = emscripten_fs_getFileSize(pathWithSlash.c_str());
-        if (fileSize <= 0) {
-            return "";
-        }
+
+    auto tryRead = [](const ccstd::string &path) -> ccstd::string {
+        int fileSize = emscripten_fs_getFileSize(path.c_str());
+        if (fileSize <= 0) return "";
         std::vector<char> buffer(fileSize + 1);
-        int readSize = emscripten_fs_readFile(pathWithSlash.c_str(), buffer.data(), fileSize + 1);
-        if (readSize < 0) {
-            return "";
-        }
+        int readSize = emscripten_fs_readFile(path.c_str(), buffer.data(), fileSize + 1);
+        if (readSize < 0) return "";
         return std::string(buffer.data(), readSize);
-    }
-    
-    std::vector<char> buffer(fileSize + 1);
-    int readSize = emscripten_fs_readFile(filename.c_str(), buffer.data(), fileSize + 1);
-    if (readSize < 0) {
-        return "";
-    }
-    
-    return std::string(buffer.data(), readSize);
+    };
+
+    ccstd::string result = tryRead(filename);
+    if (!result.empty()) return result;
+
+    ccstd::string pathWithSlash = "/" + filename;
+    result = tryRead(pathWithSlash);
+    if (!result.empty()) return result;
+
+    ccstd::string pathInData = "/data/" + filename;
+    return tryRead(pathInData);
 }
 
 Data FileUtilsEmscripten::getDataFromFile(const ccstd::string &filename) {
     if (filename.empty()) {
         return Data();
     }
-    
-    int fileSize = emscripten_fs_getFileSize(filename.c_str());
-    if (fileSize <= 0) {
-        ccstd::string pathWithSlash = "/" + filename;
-        fileSize = emscripten_fs_getFileSize(pathWithSlash.c_str());
-        if (fileSize <= 0) {
-            return Data();
-        }
+
+    auto tryRead = [](const ccstd::string &path) -> Data {
+        int fileSize = emscripten_fs_getFileSize(path.c_str());
+        if (fileSize <= 0) return Data();
         std::vector<uint8_t> buffer(fileSize);
-        int readSize = emscripten_fs_readFile(pathWithSlash.c_str(), (char*)buffer.data(), fileSize);
-        if (readSize < 0) {
-            return Data();
-        }
+        int readSize = emscripten_fs_readFile(path.c_str(), reinterpret_cast<char *>(buffer.data()), fileSize);
+        if (readSize < 0) return Data();
         Data ret;
         ret.copy(buffer.data(), readSize);
         return ret;
-    }
-    
-    std::vector<uint8_t> buffer(fileSize);
-    int readSize = emscripten_fs_readFile(filename.c_str(), (char*)buffer.data(), fileSize);
-    if (readSize < 0) {
-        return Data();
-    }
-    
-    Data ret;
-    ret.copy(buffer.data(), readSize);
-    return ret;
+    };
+
+    Data result = tryRead(filename);
+    if (!result.isNull()) return result;
+
+    ccstd::string pathWithSlash = "/" + filename;
+    result = tryRead(pathWithSlash);
+    if (!result.isNull()) return result;
+
+    ccstd::string pathInData = "/data/" + filename;
+    return tryRead(pathInData);
 }
 
 }  // namespace cc

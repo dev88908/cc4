@@ -40,7 +40,7 @@ macro(cc_wasm_after_target _target_name)
     target_link_options(${CC_EXECUTABLE_NAME} PRIVATE
         "SHELL:-s ALLOW_MEMORY_GROWTH=1"
         "SHELL:-s INITIAL_MEMORY=134217728"
-        "SHELL:-s STACK_SIZE=1048576"
+        "SHELL:-s STACK_SIZE=5242880"  # 5MB, same as simulator; 1MB was too small for JSVM
         "SHELL:-s WASM=1"
         "SHELL:-s FULL_ES3=1"
         "SHELL:-s USE_WEBGL2=1"
@@ -49,9 +49,17 @@ macro(cc_wasm_after_target _target_name)
         "SHELL:-s FETCH=1"
         "SHELL:-s FORCE_FILESYSTEM=1"
         "SHELL:-s ALLOW_TABLE_GROWTH=1"
+        "SHELL:-s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','addFunction','removeFunction','FS','HEAP8','HEAPU8','HEAP16','HEAPU16','HEAP32','HEAPU32','HEAPF32','HEAPF64']"
         "SHELL:-s EXPORTED_FUNCTIONS=['_main','_jsvm_dispatch_callback']"
-        "SHELL:--preload-file ${RES_DIR}/data@/data"
     )
+    # Only add preload when data dir exists and has content (file_packager fails on empty dir)
+    if(EXISTS "${RES_DIR}/data/main.js")
+        target_link_options(${CC_EXECUTABLE_NAME} PRIVATE
+            "SHELL:--preload-file ${RES_DIR}/data@/"
+        )
+    else()
+        message(FATAL_ERROR "WASM: RES_DIR/data is empty or missing main.js. Run 'create' first (requires Windows build output at build/windows/data). RES_DIR=${RES_DIR}")
+    endif()
 
     if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
         target_link_options(${CC_EXECUTABLE_NAME} PRIVATE
