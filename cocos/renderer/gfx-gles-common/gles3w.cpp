@@ -24,6 +24,7 @@
 
 #include "gles3w.h"
 
+#if !defined(__EMSCRIPTEN__)
 /**
  * ========================= !DO NOT CHANGE THE FOLLOWING SECTION MANUALLY! =========================
  * The following section is auto-generated from GLES spec by running:
@@ -281,8 +282,10 @@ PFNGLTEXSTORAGE3DMULTISAMPLEPROC glTexStorage3DMultisample;
  * node tools/gles-wrangler-generator/generate.js
  * ========================= !DO NOT CHANGE THE ABOVE SECTION MANUALLY! =========================
  */
+#endif /* !defined(__EMSCRIPTEN__) */
 
 void gles3wLoadProcs(PFNGLES3WLOADPROC gles3wLoad) {
+#if !defined(__EMSCRIPTEN__)
     /**
      * ========================= !DO NOT CHANGE THE FOLLOWING SECTION MANUALLY! =========================
      * The following section is auto-generated from GLES spec by running:
@@ -540,4 +543,5 @@ void gles3wLoadProcs(PFNGLES3WLOADPROC gles3wLoad) {
      * node tools/gles-wrangler-generator/generate.js
      * ========================= !DO NOT CHANGE THE ABOVE SECTION MANUALLY! =========================
      */
+#endif /* !defined(__EMSCRIPTEN__) */
 }

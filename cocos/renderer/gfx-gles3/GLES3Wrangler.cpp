@@ -93,11 +93,13 @@ void *gles3wLoad(const char *proc) {
     return res;
 }
 #elif defined(__EMSCRIPTEN__)
+/* Emscripten: use EMSDK-provided EGL/GL directly, no wrangler loading */
 static PFNGLES3WLOADPROC pfnGles3wLoad = nullptr;
 bool gles3wOpen() { return true; }
 bool gles3wClose() { return true; }
 void *gles3wLoad(const char *proc) {
-    return (void *)eglGetProcAddress(proc);
+    (void)proc;
+    return nullptr;
 }
 #else
     #include <dlfcn.h>

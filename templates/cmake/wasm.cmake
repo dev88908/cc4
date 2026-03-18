@@ -48,6 +48,8 @@ macro(cc_wasm_after_target _target_name)
         "SHELL:-s MAX_WEBGL_VERSION=2"
         "SHELL:-s FETCH=1"
         "SHELL:-s FORCE_FILESYSTEM=1"
+        "SHELL:-s ALLOW_TABLE_GROWTH=1"
+        "SHELL:-s EXPORTED_FUNCTIONS=['_main','_jsvm_dispatch_callback']"
         "SHELL:--preload-file ${RES_DIR}/data@/data"
     )
 

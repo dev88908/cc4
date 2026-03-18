@@ -25,7 +25,11 @@
 #pragma once
 
 #ifndef __OHOS__
-    #define GL_GLES_PROTOTYPES 0
+    #if defined(__EMSCRIPTEN__)
+        #define GL_GLES_PROTOTYPES 1
+    #else
+        #define GL_GLES_PROTOTYPES 0
+    #endif
     #include <GLES2/gl2.h>
     #include <GLES2/gl2ext.h>
 #else
@@ -34,6 +38,7 @@
     #include "patch/gl2ext.h"
 #endif
 
+#if !defined(__EMSCRIPTEN__)
 /**
  * ========================= !DO NOT CHANGE THE FOLLOWING SECTION MANUALLY! =========================
  * The following section is auto-generated from GLES spec by running:
@@ -1111,6 +1116,8 @@ extern PFNGLENDTILINGQCOMPROC glEndTilingQCOM;
  * node tools/gles-wrangler-generator/generate.js
  * ========================= !DO NOT CHANGE THE ABOVE SECTION MANUALLY! =========================
  */
+
+#endif /* !defined(__EMSCRIPTEN__) */
 
 using PFNGLES2WLOADPROC = void *(*)(const char *);
 void gles2wLoadProcs(PFNGLES2WLOADPROC gles2wLoad);
