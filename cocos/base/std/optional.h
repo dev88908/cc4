@@ -38,7 +38,14 @@ using std::optional;
 #else
     #include "base/std/container/string.h"
     #include "boost/none.hpp"
+    #if defined(__clang__)
+        #pragma clang diagnostic push
+        #pragma clang diagnostic ignored "-Wdeprecated-builtins"
+    #endif
     #include "boost/optional.hpp"
+    #if defined(__clang__)
+        #pragma clang diagnostic pop
+    #endif
 
 namespace ccstd {
 

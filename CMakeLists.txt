@@ -1858,7 +1858,7 @@ if(CC_USE_GLES2)
 endif()
 
 if(CC_USE_GLES3)
-    cocos_source_files(
+    set(GLES3_SOURCES
                      cocos/renderer/gfx-gles3/GLES3Buffer.cpp
                      cocos/renderer/gfx-gles3/GLES3Buffer.h
                      cocos/renderer/gfx-gles3/GLES3CommandBuffer.cpp
@@ -1905,6 +1905,10 @@ if(CC_USE_GLES3)
                      cocos/renderer/gfx-gles3/states/GLES3Sampler.cpp
                      cocos/renderer/gfx-gles3/states/GLES3Sampler.h
     )
+    if(EMSCRIPTEN)
+        list(APPEND GLES3_SOURCES cocos/renderer/gfx-gles3/GLES3EmscriptenStubs.cpp)
+    endif()
+    cocos_source_files(${GLES3_SOURCES})
 endif()
 
 if(CC_USE_METAL)

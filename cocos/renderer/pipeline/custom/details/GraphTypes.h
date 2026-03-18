@@ -26,7 +26,14 @@
 
 #include <boost/container/pmr/polymorphic_allocator.hpp>
 #include <boost/iterator/iterator_adaptor.hpp>
+#if defined(__clang__)
+    #pragma clang diagnostic push
+    #pragma clang diagnostic ignored "-Wdeprecated-builtins"
+#endif
 #include <boost/optional.hpp>
+#if defined(__clang__)
+    #pragma clang diagnostic pop
+#endif
 #include <memory>
 #include <type_traits> // IWYU pragma: export
 #include "cocos/base/memory/Memory.h"
