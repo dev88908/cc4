@@ -1,0 +1,22 @@
+{
+    "name": "wasm-builder",
+    "title": "WASM Builder",
+    "package_version": 2,
+    "version": "1.0.0",
+    "author": "Custom",
+    "description": "WASM platform builder plugin for Cocos Creator",
+    "contributions": {
+        "builder": "./dist/builder.js"
+    },
+    "scripts": {
+        "build": "tsc"
+    },
+    "devDependencies": {
+        "@cocos/creator-types": "^3.8.1",
+        "@types/fs-extra": "^5.0.4",
+        "@types/node": "^20.15.0"
+    },
+    "dependencies": {
+        "fs-extra": "^10.0.0"
+    }
+}

@@ -20,7 +20,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <cstdio>
-#include <vector>
 
 // ── Concrete backing structs ──────────────────────────────────────────────────
 
@@ -43,10 +42,13 @@ struct JSVM_Value__ {
 };
 
 // CallbackInfo carries the live JS call context so OH_JSVM_GetCbInfo works.
+static constexpr int CBINFO_MAX_ARGS = 20;
+
 struct JSVM_CallbackInfo__ {
     int  thisRef{0};
     int  newTargetRef{0};
-    std::vector<int> argRefs;   // JS ref indices for each argument
+    int  argCount{0};
+    int  argRefs[CBINFO_MAX_ARGS];
     void *cbData{nullptr};
 };
 
@@ -253,33 +255,27 @@ EM_JS(int, jsvm_push_ref, (int ref), {
     return Module._jsvmRefs.length - 1;
 });
 
-// Get the number of arguments passed to the current JS call frame.
-// We store call-frame info in Module._jsvmCallStack (pushed by jsvm_make_function_js).
-EM_JS(int, jsvm_cbinfo_argc, (int cbinfoIdx), {
+// Batch-fetch all callback info in a single EM_JS call to minimize
+// WASM↔JS boundary crossings (each crossing consumes a JS call-stack frame).
+// outBuf layout (int32 words): [thisRef, newTargetRef, arg0Ref, arg1Ref, ...]
+// Returns actual argument count.
+EM_JS(int, jsvm_cbinfo_get_all, (int cbinfoIdx, int *outBuf, int maxArgs), {
     var frame = Module._jsvmCallStack && Module._jsvmCallStack[cbinfoIdx];
-    return frame ? frame.args.length : 0;
-});
-
-EM_JS(int, jsvm_cbinfo_arg, (int cbinfoIdx, int i), {
-    if (!Module._jsvmRefs) { Module._jsvmRefs = [undefined]; }
-    var frame = Module._jsvmCallStack && Module._jsvmCallStack[cbinfoIdx];
-    if (!frame || i >= frame.args.length) { Module._jsvmRefs.push(undefined); return Module._jsvmRefs.length-1; }
-    Module._jsvmRefs.push(frame.args[i]);
-    return Module._jsvmRefs.length - 1;
-});
-
-EM_JS(int, jsvm_cbinfo_this, (int cbinfoIdx), {
-    if (!Module._jsvmRefs) { Module._jsvmRefs = [undefined]; }
-    var frame = Module._jsvmCallStack && Module._jsvmCallStack[cbinfoIdx];
-    Module._jsvmRefs.push(frame ? frame.thisArg : undefined);
-    return Module._jsvmRefs.length - 1;
-});
-
-EM_JS(int, jsvm_cbinfo_new_target, (int cbinfoIdx), {
-    if (!Module._jsvmRefs) { Module._jsvmRefs = [undefined]; }
-    var frame = Module._jsvmCallStack && Module._jsvmCallStack[cbinfoIdx];
-    Module._jsvmRefs.push(frame ? frame.newTarget : undefined);
-    return Module._jsvmRefs.length - 1;
+    if (!frame) return 0;
+    var refs = Module._jsvmRefs;
+    if (!refs) { refs = Module._jsvmRefs = [undefined]; }
+    refs.push(frame.thisArg);
+    HEAP32[(outBuf>>2)] = refs.length - 1;
+    refs.push(frame.newTarget || undefined);
+    HEAP32[(outBuf>>2)+1] = refs.length - 1;
+    var argc = frame.args.length;
+    if (argc > maxArgs) argc = maxArgs;
+    var fargs = frame.args;
+    for (var i = 0; i < argc; i++) {
+        refs.push(fargs[i]);
+        HEAP32[(outBuf>>2)+2+i] = refs.length - 1;
+    }
+    return argc;
 });
 
 // Store the return value from a C++ callback invocation back into the JS call frame.
@@ -387,21 +383,19 @@ EMSCRIPTEN_KEEPALIVE
 void jsvm_dispatch_callback(JSVM_Env__ *env, JSVM_CallbackStruct *cb, int cbinfoIdx) {
     if (!cb || !cb->callback) return;
 
-    // Build a JSVM_CallbackInfo__ from the JS frame data.
+    // Build JSVM_CallbackInfo__ with a single EM_JS call (no per-arg crossings).
     JSVM_CallbackInfo__ info;
     info.cbData = cb->data;
-    info.thisRef    = jsvm_cbinfo_this(cbinfoIdx);
-    info.newTargetRef = jsvm_cbinfo_new_target(cbinfoIdx);
-    int argc = jsvm_cbinfo_argc(cbinfoIdx);
-    info.argRefs.resize(argc);
-    for (int i = 0; i < argc; i++) {
-        info.argRefs[i] = jsvm_cbinfo_arg(cbinfoIdx, i);
-    }
+    int buf[2 + CBINFO_MAX_ARGS];
+    int argc = jsvm_cbinfo_get_all(cbinfoIdx, buf, CBINFO_MAX_ARGS);
+    info.thisRef     = buf[0];
+    info.newTargetRef = buf[1];
+    info.argCount    = argc;
+    for (int i = 0; i < argc; i++)
+        info.argRefs[i] = buf[2 + i];
 
-    // Invoke the real C++ callback.
     JSVM_Value result = cb->callback(env, &info);
 
-    // Store the result back into the JS frame.
     int resultRef = result ? result->ref : jsvm_make_undefined();
     jsvm_cbinfo_set_result(cbinfoIdx, resultRef);
 }
@@ -654,16 +648,20 @@ JSVM_Status OH_JSVM_GetCbInfo(JSVM_Env env, JSVM_CallbackInfo cbinfo,
         if (data) *data = nullptr;
         return JSVM_OK;
     }
-    int available = (int)cbinfo->argRefs.size();
+    int available = cbinfo->argCount;
     if (argc) {
         int requested = (int)*argc;
         if (argv && requested > 0) {
             int fill = requested < available ? requested : available;
             for (int i = 0; i < fill; i++)
                 argv[i] = allocValue(cbinfo->argRefs[i]);
-            // Fill remaining with undefined.
-            for (int i = fill; i < requested; i++)
-                argv[i] = allocValue(jsvm_make_undefined());
+            if (fill < requested) {
+                // Cache one undefined ref to avoid per-slot EM_JS calls.
+                static int s_undefinedRef = 0;
+                if (!s_undefinedRef) s_undefinedRef = jsvm_make_undefined();
+                for (int i = fill; i < requested; i++)
+                    argv[i] = allocValue(s_undefinedRef);
+            }
         }
         *argc = (size_t)available;
     }

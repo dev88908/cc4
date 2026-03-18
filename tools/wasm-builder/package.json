@@ -1,0 +1,11 @@
+{
+  "name": "wasm-builder",
+  "version": "1.0.0",
+  "description": "Standalone WASM data directory generator for Cocos Creator projects",
+  "main": "build-wasm.js",
+  "private": true,
+  "dependencies": {
+    "ejs": "^3.1.8",
+    "fs-extra": "^10.1.0"
+  }
+}

@@ -32,6 +32,8 @@
 #include "platform/empty/modules/SystemWindowManager.h"
 #include "platform/empty/modules/Vibrator.h"
 #include "platform/interfaces/OSInterface.h"
+#include "engine/EngineEvents.h"
+#include "platform/interfaces/modules/ISystemWindow.h"
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
@@ -45,26 +47,46 @@ EmscriptenPlatform::EmscriptenPlatform() = default;
 EmscriptenPlatform::~EmscriptenPlatform() = default;
 
 int32_t EmscriptenPlatform::init() {
-    // Register platform interfaces
+    // Register platform interfaces (aligned with WindowsPlatform structure)
     registerInterface(std::make_shared<Accelerometer>());
     registerInterface(std::make_shared<Battery>());
     registerInterface(std::make_shared<Network>());
     registerInterface(std::make_shared<Screen>());
     registerInterface(std::make_shared<System>());
-    registerInterface(std::make_shared<SystemWindowManager>());
-    // SystemWindow requires windowId and externalHandle parameters
-    // For Emscripten, we use 0 as windowId and nullptr as externalHandle
-    registerInterface(std::make_shared<SystemWindow>(0, nullptr));
+    _windowManager = std::make_shared<SystemWindowManager>();
+    registerInterface(_windowManager);
     registerInterface(std::make_shared<Vibrator>());
-    return 0;
+    return _windowManager->init();
 }
 
 int32_t EmscriptenPlatform::loop() {
 #ifdef __EMSCRIPTEN__
-    // Emscripten uses its own event loop, so we don't need to implement one here
-    // The browser's event loop will handle everything
+    onResume();
     emscripten_set_main_loop([]() {
-        // Main loop callback - game logic will be called from here
+        static bool firstFrame = true;
+        if (firstFrame) {
+            firstFrame = false;
+            cc::WindowEvent ev;
+            ev.type = cc::WindowEvent::Type::SHOW;
+            ev.windowId = cc::ISystemWindow::mainWindowId;
+            cc::events::WindowEvent::broadcast(ev);
+        }
+
+        auto* platform = static_cast<cc::UniversalPlatform*>(cc::BasePlatform::getPlatform());
+        auto* emPlatform = static_cast<cc::EmscriptenPlatform*>(platform);
+        if (emPlatform && emPlatform->getWindowManager()) {
+            emPlatform->getWindowManager()->processEvent();
+        }
+        if (platform) {
+            static double lastTime = 0.0;
+            double now = emscripten_get_now();
+            int32_t fps = platform->getFps();
+            double desiredInterval = 1000.0 / fps;
+            if (now - lastTime >= desiredInterval - 1.0) {
+                lastTime = now;
+                platform->runTask();
+            }
+        }
     }, 0, 1);
 #endif
     return 0;

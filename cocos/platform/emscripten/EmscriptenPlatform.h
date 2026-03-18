@@ -24,9 +24,12 @@
 
 #pragma once
 
+#include <memory>
 #include "platform/UniversalPlatform.h"
 
 namespace cc {
+
+class SystemWindowManager;
 
 class CC_DLL EmscriptenPlatform : public UniversalPlatform {
 public:
@@ -37,7 +40,10 @@ public:
     int32_t loop() override;
     ISystemWindow *createNativeWindow(uint32_t windowId, void *externalHandle) override;
 
+    SystemWindowManager *getWindowManager() const { return _windowManager.get(); }
+
 private:
+    std::shared_ptr<SystemWindowManager> _windowManager{nullptr};
     bool _quit{false};
 };
 
