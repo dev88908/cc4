@@ -25,12 +25,16 @@
 #include "gles2w.h"
 
 #ifndef __OHOS__
-    #define GL_GLES_PROTOTYPES 0
+    #ifndef GL_GLES_PROTOTYPES
+        #define GL_GLES_PROTOTYPES 0
+    #endif
     #include <GLES2/gl2.h>
     #include <GLES2/gl2ext.h>
     #include <GLES2/gl2platform.h>
 #else
-    #define GL_GLES_PROTOTYPES 0
+    #ifndef GL_GLES_PROTOTYPES
+        #define GL_GLES_PROTOTYPES 0
+    #endif
     #include <GLES3/gl32.h>
     #include <GLES3/gl3platform.h>
 #endif

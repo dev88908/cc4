@@ -33,6 +33,7 @@
 #if defined(__clang__)
     #pragma clang diagnostic push
     #pragma clang diagnostic ignored "-Wnontrivial-memcall"
+    #pragma clang diagnostic ignored "-Wdeprecated-builtins"
 #endif
 #include <boost/graph/adjacency_iterator.hpp>
 #include <boost/graph/graph_traits.hpp>

@@ -29,6 +29,11 @@
  */
 // clang-format off
 #pragma once
+#if defined(__clang__)
+    #pragma clang diagnostic push
+    #pragma clang diagnostic ignored "-Wnontrivial-memcall"
+    #pragma clang diagnostic ignored "-Wdeprecated-builtins"
+#endif
 #include <string_view>
 #include <tuple>
 #include "cocos/renderer/pipeline/custom/LayoutGraphTypes.h"
@@ -2062,4 +2067,7 @@ add_vertex(LayoutGraphData& g, Tag t, const char* name, LayoutGraphData::vertex_
 
 } // namespace cc
 
+#if defined(__clang__)
+    #pragma clang diagnostic pop
+#endif
 // clang-format on

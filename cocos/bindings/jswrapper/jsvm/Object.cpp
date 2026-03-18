@@ -523,10 +523,10 @@ bool Object::getAllKeys(std::vector<std::string>* allKeys) const {
             NODE_API_CALL(status, _env, OH_JSVM_GetValueStringUtf8(_env, val, nullptr, 0, &result));
             if(status == JSVM_OK){
                 result += 1;
-                char buffer[result];
-                NODE_API_CALL(status, _env, OH_JSVM_GetValueStringUtf8(_env, val, buffer, sizeof(buffer), &result));
+                ccstd::vector<char> buffer(result);
+                NODE_API_CALL(status, _env, OH_JSVM_GetValueStringUtf8(_env, val, buffer.data(), buffer.size(), &result));
                 if (result > 0) {
-                    allKeys->push_back(buffer);
+                    allKeys->push_back(buffer.data());
                 }
             }
         }
@@ -646,9 +646,9 @@ std::string Object::toString() const {
         size_t result_t = 0;
         NODE_API_CALL_RESULT(status, _env, OH_JSVM_GetValueStringUtf8(_env, result, nullptr, 0, &result_t), ret);
         result_t += 1;
-        char buffer[result_t];
-        NODE_API_CALL_RESULT(status, _env, OH_JSVM_GetValueStringUtf8(_env, result, buffer, sizeof(buffer), &result_t), ret);
-        ret = buffer;
+        ccstd::vector<char> buffer(result_t);
+        NODE_API_CALL_RESULT(status, _env, OH_JSVM_GetValueStringUtf8(_env, result, buffer.data(), buffer.size(), &result_t), ret);
+        ret = buffer.data();
     } else if (isArrayBuffer()) {
         ret = "[object ArrayBuffer]";
     } else {
@@ -683,10 +683,8 @@ Class* Object::_getClass() const {
 }
 
 Object* Object::getObjectWithPtr(void* ptr) {
-    Object* obj = nullptr;
-    auto iter = NativePtrToObjectMap::find(ptr);
-    if (iter != NativePtrToObjectMap::end()) {
-        obj = iter->second;
+    Object* obj = NativePtrToObjectMap::findFirst(ptr);
+    if (obj != nullptr) {
         obj->incRef();
     }
     return obj;
@@ -731,12 +729,7 @@ void Object::weakCallback(JSVM_Env env, void* nativeObject, void* finalizeHint /
             return;
         }
         if (seObj->_clearMappingInFinalizer && rawPtr != nullptr) {
-            auto iter = NativePtrToObjectMap::find(rawPtr);
-            if (iter != NativePtrToObjectMap::end()) {
-                NativePtrToObjectMap::erase(iter);
-            } else {
-                SE_LOGE("not find ptr in NativePtrToObjectMap");
-            }
+            NativePtrToObjectMap::erase(rawPtr, seObj);
         }
 
         if (seObj->_finalizeCb != nullptr) {

@@ -22,6 +22,10 @@
  THE SOFTWARE.
 ****************************************************************************/
 
+#if defined(__clang__)
+    #pragma clang diagnostic push
+    #pragma clang diagnostic ignored "-Wdeprecated-builtins"
+#endif
 #include <boost/graph/depth_first_search.hpp>
 #include "NativePipelineTypes.h"
 #include "RenderGraphGraphs.h"
@@ -470,3 +474,7 @@ void ResourceGraph::invalidatePersistentRenderPassAndFramebuffer(gfx::Texture* p
 } // namespace render
 
 } // namespace cc
+
+#if defined(__clang__)
+    #pragma clang diagnostic pop
+#endif

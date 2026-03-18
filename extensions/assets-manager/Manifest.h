@@ -36,7 +36,14 @@
 #include "network/Downloader.h"
 #include "platform/FileUtils.h"
 
+#if defined(__clang__)
+    #pragma clang diagnostic push
+    #pragma clang diagnostic ignored "-Wnontrivial-memcall"
+#endif
 #include "json/document-wrapper.h"
+#if defined(__clang__)
+    #pragma clang diagnostic pop
+#endif
 
 NS_CC_EXT_BEGIN
 

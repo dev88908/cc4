@@ -22,6 +22,10 @@
  THE SOFTWARE.
 ****************************************************************************/
 
+#if defined(__clang__)
+    #pragma clang diagnostic push
+    #pragma clang diagnostic ignored "-Wdeprecated-builtins"
+#endif
 #include <boost/container/static_vector.hpp>
 #include <boost/core/span.hpp>
 #include <boost/graph/depth_first_search.hpp>
@@ -1357,3 +1361,7 @@ void NativePipeline::prepareDescriptorSets(
 } // namespace render
 
 } // namespace cc
+
+#if defined(__clang__)
+    #pragma clang diagnostic pop
+#endif

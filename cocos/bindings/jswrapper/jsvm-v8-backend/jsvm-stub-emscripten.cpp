@@ -168,13 +168,13 @@ EM_JS(int, jsvm_make_string_utf8, (const char *s, int len), {
 });
 
 EM_JS(int, jsvm_get_string_utf8_len, (int ref), {
-    var v = Module._jsvmRefs ? Module._jsvmRefs[ref] : '';
+    var v = Module._jsvmRefs ? Module._jsvmRefs[ref] : "";
     if (typeof v !== 'string') v = String(v);
     return lengthBytesUTF8(v);
 });
 
 EM_JS(void, jsvm_get_string_utf8_buf, (int ref, char *buf, int bufsize), {
-    var v = Module._jsvmRefs ? Module._jsvmRefs[ref] : '';
+    var v = Module._jsvmRefs ? Module._jsvmRefs[ref] : "";
     if (typeof v !== 'string') v = String(v);
     stringToUTF8(v, buf, bufsize);
 });
@@ -217,7 +217,7 @@ EM_JS(void, jsvm_set_element, (int ref, int idx, int valRef), {
 
 EM_JS(int, jsvm_json_parse, (int strRef), {
     try {
-        var s = Module._jsvmRefs ? Module._jsvmRefs[strRef] : '';
+        var s = Module._jsvmRefs ? Module._jsvmRefs[strRef] : "";
         if (!Module._jsvmRefs) { Module._jsvmRefs = [undefined]; }
         Module._jsvmRefs.push(JSON.parse(s));
         return Module._jsvmRefs.length - 1;
@@ -296,7 +296,7 @@ EM_JS(int, jsvm_make_function_js, (const char *name, void *cbStructPtr, void *en
     if (!Module._jsvmRefs)     { Module._jsvmRefs = [undefined]; }
     if (!Module._jsvmCallStack){ Module._jsvmCallStack = [null]; } // index 0 unused
 
-    var fnName = name ? UTF8ToString(name) : '';
+    var fnName = name ? UTF8ToString(name) : "";
     var fn = function() {
         // Push a call frame so OH_JSVM_GetCbInfo can read it.
         var frame = {

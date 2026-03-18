@@ -29,6 +29,10 @@
  */
 // clang-format off
 // NOLINTBEGIN(misc-include-cleaner, bugprone-easily-swappable-parameters)
+#if defined(__clang__)
+    #pragma clang diagnostic push
+    #pragma clang diagnostic ignored "-Wdeprecated-builtins"
+#endif
 #include "FGDispatcherTypes.h"
 
 namespace cc {
@@ -172,5 +176,8 @@ FrameGraphDispatcher::FrameGraphDispatcher(ResourceGraph& resourceGraphIn, const
 
 } // namespace cc
 
+#if defined(__clang__)
+    #pragma clang diagnostic pop
+#endif
 // NOLINTEND(misc-include-cleaner, bugprone-easily-swappable-parameters)
 // clang-format on

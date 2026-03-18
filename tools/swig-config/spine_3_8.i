@@ -429,9 +429,6 @@ using namespace spine;
 
 %attribute_writeonly(spine::SkeletonBinary, float, scale, setScale);
 
-%attribute(spine::SkeletonClipping, spine::Vector<float>&, clippedVertices, getClippedVertices);
-%attribute(spine::SkeletonClipping, spine::Vector<unsigned short>&, clippedTriangles, getClippedTriangles);
-
 %attribute(spine::SkeletonData, spine::String&, name, getName, setName);
 %attribute(spine::SkeletonData, spine::Vector<spine::BoneData*>&, bones, getBones);
 %attribute(spine::SkeletonData, spine::Vector<spine::SlotData*>&, slots, getSlots);
@@ -451,8 +448,6 @@ using namespace spine;
 %attribute(spine::SkeletonData, float, fps, getFps, setFps);
 %attribute(spine::SkeletonData, spine::String&, imagesPath, getImagesPath, setImagesPath);
 %attribute(spine::SkeletonData, spine::String&, audioPath, getAudioPath, setAudioPath);
-
-%attribute(spine::SkeletonJson, float, scale, setScale);
 
 %attribute(spine::Skin, spine::String&, name, getName);
 %attribute(spine::Skin, spine::Vector<BoneData*>&, bones, getBones);
@@ -546,9 +541,6 @@ using namespace spine;
 %attribute(spine::SwirlVertexEffect, float, radius, getRadius, setRadius);
 %attribute(spine::SwirlVertexEffect, float, angle, getAngle, setAngle);
 
-%attribute(spine::Vector2, float, x, getX, setX);
-%attribute(spine::Vector2, float, y, getY, setY);
-
 // ----- Import Section ------
 // Brief: Import header files which are depended by 'Include Section'
 // Note: 
@@ -616,6 +608,11 @@ using namespace spine;
 %include "editor-support/spine/3.8/spine/SkeletonData.h"
 %include "editor-support/spine/3.8/spine/SlotData.h"
 %include "editor-support/spine/3.8/spine/SkeletonBinary.h"
+%include "editor-support/spine/3.8/spine/SkeletonJson.h"
+%include "editor-support/spine/3.8/spine/SkeletonClipping.h"
+%attribute(spine::SkeletonJson, float, scale, setScale);
+%attribute(spine::SkeletonClipping, spine::Vector<float>&, clippedVertices, getClippedVertices);
+%attribute(spine::SkeletonClipping, spine::Vector<unsigned short>&, clippedTriangles, getClippedTriangles);
 %include "editor-support/spine/3.8/spine/AttachmentLoader.h"
 %include "editor-support/spine/3.8/spine/Atlas.h"
 %include "editor-support/spine/3.8/spine/TextureLoader.h"
@@ -625,6 +622,9 @@ using namespace spine;
 %include "editor-support/spine/3.8/spine/TransformConstraintTimeline.h"
 %include "editor-support/spine/3.8/spine/VertexEffect.h"
 
+%include "editor-support/spine-creator-support/Vector2.h"
+%attribute(spine::Vector2, float, x, getX, setX);
+%attribute(spine::Vector2, float, y, getY, setY);
 %include "editor-support/spine-creator-support/VertexEffectDelegate.h"
 %include "editor-support/spine-creator-support/SkeletonRenderer.h"
 %include "editor-support/spine-creator-support/SkeletonAnimation.h"
