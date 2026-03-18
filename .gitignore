@@ -190,3 +190,6 @@ platform-nx
 build-mac
 tools/simulator/frameworks/runtime-src/build-wasm
 tools/native-pack-tool/node_modules
+
+# Spine WASM 构建缓存（全量重编请用 build-rebuild-spine-wasm.bat）
+cocos/editor-support/spine-wasm/temp

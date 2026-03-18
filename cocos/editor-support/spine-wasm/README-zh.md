@@ -82,6 +82,17 @@ ninja
 
 ---
 
+## 全量重编（与工程 EMSDK 一致）
+
+若需与当前工程使用**同一 EMSDK** 全量重编 Spine WASM（避免版本/构建不一致），请使用工程内脚本：
+
+- **Windows**：在 `cocos/editor-support/spine-wasm` 下执行：
+  ```bat
+  build-rebuild-spine-wasm.bat
+  ```
+  脚本会：清理 `temp` → 使用与 `tools/simulator/frameworks/runtime-src/build-wasm.bat` 相同的 EMSDK 配置 → 重新 CMake + Ninja 编译 → 将 `spine.wasm` 和 `spine.wasm.js` 复制到 `external/emscripten/spine`。
+- 可通过环境变量 `EMSDK_ROOT` 覆盖 EMSDK 路径（默认与 build-wasm.bat 一致）。
+
 ## 注意事项
 
 1. **版本兼容性**:  
