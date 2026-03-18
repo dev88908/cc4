@@ -134,6 +134,10 @@ using namespace spine;
 %ignore spine::PointAttachment::computeWorldRotation(Bone&);
 %ignore spine::RegionAttachment::computeWorldVertices;
 %ignore spine::Slot::Slot(SlotData&, Bone&);
+%ignore spine::AttachmentTimeline::setAttachment;
+%ignore spine::SkeletonClipping::clipStart;
+%ignore spine::SkeletonClipping::clipEnd;
+%ignore spine::AnimationState::setAttachment;
 %ignore spine::VertexEffect::begin(Skeleton &);
 %ignore spine::TransformConstraint::TransformConstraint(TransformConstraintData&, Skeleton&);
 %ignore spine::SkeletonBounds::update(Skeleton&, bool);
@@ -610,7 +614,7 @@ using namespace spine;
 %include "editor-support/spine/3.8/spine/SkeletonBinary.h"
 %include "editor-support/spine/3.8/spine/SkeletonJson.h"
 %include "editor-support/spine/3.8/spine/SkeletonClipping.h"
-%attribute(spine::SkeletonJson, float, scale, setScale);
+%attribute_writeonly(spine::SkeletonJson, float, scale, setScale);
 %attribute(spine::SkeletonClipping, spine::Vector<float>&, clippedVertices, getClippedVertices);
 %attribute(spine::SkeletonClipping, spine::Vector<unsigned short>&, clippedTriangles, getClippedTriangles);
 %include "editor-support/spine/3.8/spine/AttachmentLoader.h"

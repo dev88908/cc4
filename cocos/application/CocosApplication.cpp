@@ -24,6 +24,7 @@
 
 #include "application/CocosApplication.h"
 
+#include "base/Log.h"
 #include "base/Macros.h"
 
 #include "ApplicationManager.h"
@@ -165,7 +166,13 @@ void CocosApplication::setDebugIpAndPort(const ccstd::string &serverAddr, uint32
 }
 
 void CocosApplication::runScript(const ccstd::string &filePath) {
-    jsb_run_script(filePath);
+#if CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN
+    CC_LOG_INFO("[WASM Debug] runScript start: %s", filePath.c_str());
+#endif
+    bool ok = jsb_run_script(filePath);
+#if CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN
+    CC_LOG_INFO("[WASM Debug] runScript end: %s, result=%s", filePath.c_str(), ok ? "OK" : "FAILED");
+#endif
 }
 
 void CocosApplication::handleException(const char *location, const char *message, const char *stack) {
