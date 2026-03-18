@@ -38,6 +38,8 @@
     #include <AL/al.h>
 #elif CC_PLATFORM == CC_PLATFORM_LINUX || CC_PLATFORM == CC_PLATFORM_QNX
     #include <AL/al.h>
+#elif CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN
+    #include "audio/oalsoft/AL-stub.h"
 #endif
 #include "base/Macros.h"
 

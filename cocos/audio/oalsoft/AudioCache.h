@@ -38,6 +38,8 @@
     #include <AL/al.h>
 #elif CC_PLATFORM == CC_PLATFORM_LINUX || CC_PLATFORM == CC_PLATFORM_QNX
     #include <AL/al.h>
+#elif CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN
+    #include "audio/oalsoft/AL-stub.h"
 #endif
 #include "audio/include/AudioMacros.h"
 #include "base/Macros.h"
@@ -75,7 +77,7 @@ protected:
     void invokingLoadCallbacks();
 
     //pcm data related stuff
-    ALenum _format{-1};
+    ALenum _format{static_cast<ALenum>(-1)};
     ALsizei _sampleRate{-1};
     float _duration{0.0F};
     uint32_t _totalFrames{0};

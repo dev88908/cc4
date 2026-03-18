@@ -56,6 +56,17 @@ void HttpClient::destroyInstance() {
     }
 }
 
+void HttpClient::setSSLVerification(const ccstd::string &caFile) {
+    (void)caFile;
+    CC_LOG_DEBUG("HttpClient::setSSLVerification() - stub for Emscripten");
+}
+
+void HttpClient::send(HttpRequest* request) {
+    (void)request;
+    CC_LOG_DEBUG("HttpClient::send() - stub for Emscripten");
+    // Stub: would need Emscripten fetch API
+}
+
 void HttpClient::sendImmediate(HttpRequest* request) {
     CC_LOG_DEBUG("HttpClient::sendImmediate() - stub for Emscripten");
     // Stub implementation - would need to use Emscripten's fetch API

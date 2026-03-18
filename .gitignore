@@ -189,3 +189,4 @@ platform-nx
 **/*~
 build-mac
 tools/simulator/frameworks/runtime-src/build-wasm
+tools/native-pack-tool/node_modules

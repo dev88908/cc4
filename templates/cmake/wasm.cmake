@@ -47,7 +47,6 @@ macro(cc_wasm_after_target _target_name)
         "SHELL:-s MIN_WEBGL_VERSION=2"
         "SHELL:-s MAX_WEBGL_VERSION=2"
         "SHELL:-s FETCH=1"
-        "SHELL:-s WEBSOCKET=1"
         "SHELL:-s FORCE_FILESYSTEM=1"
         "SHELL:--preload-file ${RES_DIR}/data@/data"
     )
