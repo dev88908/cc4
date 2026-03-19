@@ -34,6 +34,7 @@
 #include "cocos/bindings/manual/jsb_global.h"
 #include "cocos/bindings/manual/jsb_module_register.h"
 #include "cocos/engine/BaseEngine.h"
+#include "cocos/platform/FileUtils.h"
 #include "cocos/platform/interfaces/modules/IScreen.h"
 #include "cocos/platform/interfaces/modules/ISystemWindowManager.h"
 
@@ -167,7 +168,11 @@ void CocosApplication::setDebugIpAndPort(const ccstd::string &serverAddr, uint32
 
 void CocosApplication::runScript(const ccstd::string &filePath) {
 #if CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN
-    CC_LOG_INFO("[WASM Debug] runScript start: %s", filePath.c_str());
+    auto *fileUtils = FileUtils::getInstance();
+    const bool exists = fileUtils->isFileExist(filePath);
+    const ccstd::string fullPath = fileUtils->fullPathForFilename(filePath);
+    CC_LOG_INFO("[WASM Debug] runScript start: %s, exists=%s, fullPath=%s",
+                filePath.c_str(), exists ? "YES" : "NO", fullPath.c_str());
 #endif
     bool ok = jsb_run_script(filePath);
 #if CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN

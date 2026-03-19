@@ -99,7 +99,7 @@ bool JSB_console_format_log(State& s, cc::LogLevel level, int msgIndex = 0) {
 }
 
 bool JSB_console_log(State& s) {
-    JSB_console_format_log(s, cc::LogLevel::LEVEL_DEBUG);
+    JSB_console_format_log(s, cc::LogLevel::INFO);
     __oldConsoleLog.toObject()->call(s.args(), s.thisObject());
     return true;
 }

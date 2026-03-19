@@ -52,25 +52,12 @@ EM_JS(bool, emscripten_fs_isDir, (const char* path), {
 
 EM_JS(int, emscripten_fs_readFile, (const char* path, char* buf, int bufSize), {
     try {
-        var data = Module.FS.readFile(UTF8ToString(path));
+        var data = Module.FS.readFile(UTF8ToString(path), { encoding: 'binary' });
         if (!data) return -1;
-        
-        var str = "";
-        if (typeof data === 'string') {
-            str = data;
-        } else {
-            var arr = new Uint8Array(data);
-            for (var i = 0; i < arr.length; i++) {
-                str += String.fromCharCode(arr[i]);
-            }
-        }
-        
-        var len = Math.min(str.length, bufSize - 1);
-        for (var i = 0; i < len; i++) {
-            buf[i] = str.charCodeAt(i);
-        }
-        buf[len] = 0;
-        return str.length;
+        var arr = data instanceof Uint8Array ? data : new Uint8Array(data);
+        var len = Math.min(arr.length, bufSize);
+        HEAPU8.set(arr.subarray(0, len), buf);
+        return len;
     } catch(e) { 
         return -1; 
     }

@@ -615,6 +615,9 @@ JSVM_Status OH_JSVM_DefineClass(JSVM_Env env, const char *utf8name, size_t lengt
     // Create a prototype object and attach it.
     int protoRef = jsvm_make_object();
     jsvm_set_named_property(ctorRef, "prototype", protoRef);
+    // Mirror real JS class/function semantics so `prototype.constructor`
+    // lookups used by manual bindings (for example `__nativeFields__`) work.
+    jsvm_set_named_property(protoRef, "constructor", ctorRef);
 
     // Install instance and static properties.
     for (size_t i = 0; i < propCount; i++) {

@@ -1,12 +1,13 @@
 /**
- * WASM 工程生成器（仅生成 CMake 工程，不生成 data、不执行编译）
+ * WASM 工程生成器（生成 data + CMake 工程，不执行编译）
  *
  * 步骤：
  *   1. 从引擎模板拷贝 native/engine/common 与 native/engine/wasm（若缺失）
- *   2. 写入 build/wasm/cocos.compile.config.json 与 build/wasm/proj/cfg.cmake
- *   3. 拷贝 data-preview-editor.html 到 build/wasm/（与 proj 同级），用于预览/编辑 .data 包
- *   4. CMake configure（-S native/engine/wasm -B build/wasm/proj）
- *   5. 若存在 shell.html.ejs，生成 proj 下的 HTML 壳文件
+ *   2. 从 Windows 构建产物复制资源到 build/wasm/data，并在复制时修补 main.js
+ *   3. 写入 build/wasm/cocos.compile.config.json 与 build/wasm/proj/cfg.cmake
+ *   4. 拷贝 data-preview-editor.html 到 build/wasm/proj/，用于预览/编辑 .data 包
+ *   5. CMake configure（-S native/engine/wasm -B build/wasm/proj）
+ *   6. 若存在 shell.html.ejs，生成 proj 下的 HTML 壳文件
  *
  * Usage:
  *   node build-wasm.js <project-path> [options]
@@ -102,6 +103,7 @@ function fixPath(p) {
 function getBuildPaths(opts) {
     const buildDir = ps.join(opts.projectPath, 'build', 'wasm');
     const dataDir = ps.join(buildDir, 'data');
+    const buildRoot = ps.dirname(buildDir);
     const nativePrjDir = ps.join(buildDir, 'proj');
     const nativeTemplateDir = ps.join(opts.enginePath, 'templates', 'wasm');
     const commonTemplateDir = ps.join(opts.enginePath, 'templates', 'common');
@@ -111,6 +113,7 @@ function getBuildPaths(opts) {
     return {
         buildDir,
         dataDir,
+        buildRoot,
         nativePrjDir,
         nativeTemplateDir,
         commonTemplateDir,
@@ -167,6 +170,211 @@ function generateCMakeConfigFile(compileConfig, outputPath) {
     console.log(`[wasm-builder] Generated cfg.cmake at ${outputPath}`);
 }
 
+function validateDataDir(dataDir) {
+    const requiredFiles = [
+        'main.js',
+        'application.js',
+        ps.join('src', 'settings.json'),
+        ps.join('src', 'system.bundle.js'),
+        ps.join('assets', 'main', 'cc.config.json'),
+        ps.join('src', 'chunks', 'bundle.js'),
+        ps.join('jsb-adapter', 'web-adapter.js'),
+        ps.join('jsb-adapter', 'engine-adapter.js'),
+    ];
+
+    const missingFiles = requiredFiles.filter((relativePath) => !fs.existsSync(ps.join(dataDir, relativePath)));
+    if (missingFiles.length > 0) {
+        throw new Error(
+            `[wasm-builder] Incomplete wasm data directory at ${dataDir}. Missing: ${missingFiles.join(', ')}`
+        );
+    }
+}
+
+function copyBuiltinJsbAdapter(opts, dataDir) {
+    const adapterDir = ps.join(dataDir, 'jsb-adapter');
+    const sourceDir = ps.join(opts.enginePath, 'bin', 'adapter', 'native');
+    const requiredFiles = ['web-adapter.js', 'engine-adapter.js'];
+
+    if (!fs.existsSync(sourceDir)) {
+        console.warn(`[wasm-builder] Builtin jsb-adapter directory not found: ${sourceDir}`);
+        return;
+    }
+
+    fs.ensureDirSync(adapterDir);
+    for (const fileName of requiredFiles) {
+        const sourcePath = ps.join(sourceDir, fileName);
+        const targetPath = ps.join(adapterDir, fileName);
+        if (fs.existsSync(sourcePath) && !fs.existsSync(targetPath)) {
+            fs.copySync(sourcePath, targetPath);
+            console.log(`[wasm-builder] Copied builtin adapter: ${fileName}`);
+        }
+    }
+}
+
+function patchMainJs(mainJsPath, dataDir) {
+    if (!fs.existsSync(mainJsPath)) {
+        throw new Error(`[wasm-builder] main.js not found at ${mainJsPath}`);
+    }
+
+    const content = fs.readFileSync(mainJsPath, 'utf8');
+    if (content.includes('__WASM_BUILDER_INLINE_IMPORT_MAP__')) {
+        console.log('[wasm-builder] main.js already patched, skip');
+        return;
+    }
+
+    const legacyMarker = 'const importMapJson = jsb.fileUtils.getStringFromFile(';
+    const legacyIndex = content.indexOf(legacyMarker);
+    if (legacyIndex < 0) {
+        console.log('[wasm-builder] main.js does not contain legacy import-map loader, skip');
+        return;
+    }
+
+    const importMapMatch = content.match(/const importMapJson = jsb\.fileUtils\.getStringFromFile\((.+?)\);\s*const importMap = JSON\.parse\(importMapJson\);/s);
+    const applicationMatch = content.match(/System\.import\((.+?)\)\s*\.then\(\(\{ Application \}\) => \{/s);
+    if (!importMapMatch || !applicationMatch) {
+        throw new Error(`[wasm-builder] Unable to patch legacy main.js at ${mainJsPath}`);
+    }
+
+    const prefix = content.slice(0, legacyIndex);
+    const importMapFileExpr = importMapMatch[1].trim();
+    const applicationJsExpr = applicationMatch[1].trim();
+    const importMapFile = importMapFileExpr.replace(/^['"]|['"]$/g, '');
+    const importMapPath = ps.join(dataDir, importMapFile);
+    if (!fs.existsSync(importMapPath)) {
+        throw new Error(`[wasm-builder] import-map file not found at ${importMapPath}`);
+    }
+    const importMap = fs.readJSONSync(importMapPath);
+    const importMapLiteral = JSON.stringify(importMap, null, 2);
+
+    const patched = `${prefix}const importMapFile = ${importMapFileExpr};
+const importMap = ${importMapLiteral};
+// __WASM_BUILDER_INLINE_IMPORT_MAP__
+
+// 预加载 chunks 包，确保 System.register 在 import 前完成
+try {
+    require('src/chunks/bundle.js');
+    require('assets/internal/index.js');
+    require('assets/main/index.js');
+} catch (e) {
+    console.warn('[WASM] Preload chunks:', e.message);
+}
+
+System.warmup({
+    importMap,
+    importMapUrl: importMapFile,
+    defaultHandler: (urlNoSchema) => {
+        const path = urlNoSchema.startsWith('/') ? urlNoSchema.substr(1) : urlNoSchema;
+        let loadPath = path;
+        if (path.includes('rollupPluginModLoBabelHelpers') || path.includes('BabelHelpers')) {
+            loadPath = 'src/chunks/bundle.js';
+        } else if (path.includes('_virtual/main')) {
+            loadPath = 'assets/main/index.js';
+        } else if (path.includes('builtin-pipeline') || path.includes('_virtual/internal')) {
+            loadPath = 'assets/internal/index.js';
+        }
+        require(loadPath);
+    },
+});
+
+System.import(${applicationJsExpr})
+.then(({ Application }) => {
+    return new Application();
+}).then((application) => {
+    return System.import('cc').then((cc) => {
+        require('jsb-adapter/engine-adapter.js');
+        return application.init(cc);
+    }).then(() => {
+        return application.start();
+    });
+}).catch((importErr) => {
+    console.error(importErr.toString() + ', stack: ' + importErr.stack);
+});
+`;
+
+    fs.writeFileSync(mainJsPath, patched, 'utf8');
+    console.log(`[wasm-builder] Patched legacy main.js at ${mainJsPath}`);
+}
+
+async function copyResourcesFrom(srcRoot, dataDir, copyResources) {
+    for (const item of copyResources) {
+        const srcPath = ps.join(srcRoot, item.from);
+        const dstPath = item.to ? ps.join(dataDir, item.to) : ps.join(dataDir, ps.basename(item.from));
+        if (fs.existsSync(srcPath)) {
+            fs.ensureDirSync(ps.dirname(dstPath));
+            await fs.copy(srcPath, dstPath, { overwrite: true });
+        }
+    }
+}
+
+function mergeCopyResources(primaryResources, secondaryResources) {
+    const merged = [];
+    const seen = new Set();
+    const append = (items) => {
+        for (const item of items || []) {
+            if (!item || !item.from) {
+                continue;
+            }
+            const key = `${item.from}=>${item.to || ''}`;
+            if (seen.has(key)) {
+                continue;
+            }
+            seen.add(key);
+            merged.push(item);
+        }
+    };
+    append(primaryResources);
+    append(secondaryResources);
+    return merged;
+}
+
+async function loadCopyResources(opts, paths) {
+    const projectBuildCfgPath = ps.join(paths.platformDirInPrj, 'build-cfg.json');
+    const engineBuildCfgPath = ps.join(opts.enginePath, 'templates', 'wasm', 'build-cfg.json');
+
+    const projectBuildCfg = fs.existsSync(projectBuildCfgPath) ? await fs.readJSON(projectBuildCfgPath) : {};
+    const engineBuildCfg = fs.existsSync(engineBuildCfgPath) ? await fs.readJSON(engineBuildCfgPath) : {};
+
+    const copyResources = mergeCopyResources(
+        engineBuildCfg.copy_resources || [],
+        projectBuildCfg.copy_resources || []
+    );
+
+    if (copyResources.length === 0) {
+        throw new Error(
+            `[wasm-builder] No copy_resources configured. Checked: ${engineBuildCfgPath}, ${projectBuildCfgPath}`
+        );
+    }
+
+    console.log(`[wasm-builder] Using ${copyResources.length} copy_resources entries`);
+    return copyResources;
+}
+
+async function copyWindowsBuildData(opts, paths) {
+    const copyResources = await loadCopyResources(opts, paths);
+
+    const srcCandidates = [
+        ps.join(paths.buildRoot, 'windows', 'data'),
+        ps.join(paths.buildRoot, 'jsb-link'),
+        ps.join(paths.buildRoot, 'native'),
+    ];
+
+    for (const srcRoot of srcCandidates) {
+        if (srcRoot && fs.existsSync(srcRoot) && fs.existsSync(ps.join(srcRoot, 'main.js'))) {
+            console.log(`[wasm-builder] Copying data from ${srcRoot} to ${paths.dataDir}`);
+            fs.emptyDirSync(paths.dataDir);
+            await copyResourcesFrom(srcRoot, paths.dataDir, copyResources);
+            patchMainJs(ps.join(paths.dataDir, 'main.js'), paths.dataDir);
+            copyBuiltinJsbAdapter(opts, paths.dataDir);
+            validateDataDir(paths.dataDir);
+            return;
+        }
+    }
+
+    throw new Error(
+        `[wasm-builder] No valid source found for wasm data copy. Tried: ${srcCandidates.join(', ')}`
+    );
+}
+
 async function generateShellHtml(opts, paths) {
     console.log('[wasm-builder] Generating custom shell HTML...');
 
@@ -188,7 +396,7 @@ async function generateShellHtml(opts, paths) {
     console.log(`[wasm-builder] Generated shell HTML at ${outPath}`);
 }
 
-/** 拷贝 .data 预览编辑工具到 build/wasm/（与 proj 目录同级） */
+/** 拷贝 .data 预览编辑工具到 build/wasm/proj/ */
 function copyDataPreviewEditor(opts, paths) {
     const src = ps.join(__dirname, 'data-preview-editor.html');
     if (!fs.existsSync(src)) {
@@ -198,8 +406,8 @@ function copyDataPreviewEditor(opts, paths) {
     let html = fs.readFileSync(src, 'utf8');
     const defaultDataFile = `${opts.executableName}.data`;
     html = html.replace(/__DEFAULT_DATA_FILE__/g, defaultDataFile);
-    const outPath = ps.join(paths.buildDir, 'data-preview-editor.html');
-    fs.ensureDirSync(paths.buildDir);
+    const outPath = ps.join(paths.nativePrjDir, 'data-preview-editor.html');
+    fs.ensureDirSync(paths.nativePrjDir);
     fs.writeFileSync(outPath, html, 'utf8');
     console.log(`[wasm-builder] Copied data preview editor to ${outPath} (default data: ${defaultDataFile})`);
 }
@@ -259,6 +467,7 @@ async function stepCreate(opts, paths, compileConfig) {
     console.log('══════════════════════════════════════════\n');
 
     await stepCopyTemplates(opts, paths);
+    await copyWindowsBuildData(opts, paths);
 
     const configPath = ps.join(paths.buildDir, 'cocos.compile.config.json');
     fs.ensureDirSync(paths.buildDir);
@@ -306,6 +515,7 @@ async function stepGenerate(opts, paths, compileConfig) {
         `-DRES_DIR=${fixPath(paths.buildDir)}`,
         `-DAPP_NAME=${compileConfig.projectName}`,
         `-DLAUNCH_TYPE=${compileConfig.debug ? 'Debug' : 'Release'}`,
+        `-DCMAKE_BUILD_TYPE=${compileConfig.debug ? 'Debug' : 'Release'}`,
     ];
 
     await runCommand(opts.cmakePath, cmakeArgs, paths.buildDir);
@@ -317,8 +527,8 @@ async function main() {
     if (opts.help) {
         console.log('Usage: node build-wasm.js <project-path> [options]');
         console.log('');
-        console.log('仅生成 WASM CMake 工程（模板 + cocos.compile.config.json + cfg.cmake + cmake 配置）。');
-        console.log('不生成 build/wasm/data，不执行编译或运行。');
+        console.log('生成 WASM 数据目录与 CMake 工程（模板 + build/wasm/data + cocos.compile.config.json + cfg.cmake + cmake 配置）。');
+        console.log('不执行编译或运行。');
         console.log('');
         console.log('Options:');
         console.log('  --engine <path>      Engine root path');
