@@ -19,9 +19,40 @@ import * as fs from 'fs-extra';
 import * as path from 'path';
 
 const PACKAGE_NAME = 'wasm-builder';
+const EDITOR = (globalThis as any).Editor;
 
 function log(...args: any[]) {
     console.log(`[${PACKAGE_NAME}]`, ...args);
+}
+
+function getProjectPath(): string {
+    return EDITOR?.Project?.path || '';
+}
+
+function ensureBuilderOutput(result: IBuildResult) {
+    const outputDir = result.dest;
+    const requiredPaths = [
+        path.join(outputDir, 'main.js'),
+        path.join(outputDir, 'application.js'),
+        path.join(outputDir, 'src', 'settings.json'),
+        path.join(outputDir, 'src', 'system.bundle.js'),
+        path.join(outputDir, 'assets'),
+    ];
+
+    const hasImportMap = [
+        path.join(outputDir, 'src', 'import-map.json'),
+        path.join(outputDir, 'src', 'import-map.js'),
+    ].some((filePath) => fs.existsSync(filePath));
+    if (!hasImportMap) {
+        requiredPaths.push(path.join(outputDir, 'src', 'import-map.json'));
+    }
+
+    const missingPaths = requiredPaths.filter((filePath) => !fs.existsSync(filePath));
+    if (missingPaths.length > 0) {
+        throw new Error(
+            `[${PACKAGE_NAME}] Incomplete Creator build output at ${outputDir}. Missing: ${missingPaths.join(', ')}`
+        );
+    }
 }
 
 export const throwError: BuildHook.throwError = true;
@@ -49,17 +80,8 @@ export const onAfterBuild: BuildHook.onAfterBuild = async function (
     log('onAfterBuild');
     log('  Build output:', result.dest);
     log('  Settings:', result.paths?.settings);
-
-    // For WASM, we need to ensure the data directory has all required files
-    const dataDir = path.join(result.dest, 'data');
-    if (fs.existsSync(dataDir)) {
-        const mainJs = path.join(dataDir, 'main.js');
-        if (fs.existsSync(mainJs)) {
-            log('  main.js found in data directory');
-        } else {
-            log('  WARNING: main.js not found in data directory');
-        }
-    }
+    ensureBuilderOutput(result);
+    log('  Creator build output validated');
 
     // Write/update cocos.compile.config.json if compileConfig path exists
     if (result.paths?.compileConfig) {
@@ -152,9 +174,9 @@ function buildCocosParams(
         platformName: 'wasm',
         enginePath: fixPath(enginePath),
         nativeEnginePath: fixPath(nativeEnginePath),
-        projDir: fixPath(path.dirname(result.dest)),
+        projDir: fixPath(getProjectPath()),
         buildDir: fixPath(result.dest),
-        buildAssetsDir: fixPath(path.join(result.dest, 'data')),
+        buildAssetsDir: fixPath(result.dest),
         projectName: options.name || 'CocosGame',
         executableName: options.name || 'CocosGame',
         debug: options.debug || false,

@@ -412,6 +412,22 @@ function tryFallbackCcJs(opts, paths) {
     console.warn('[data-gen] WARNING: No cc.js found. The build may fail at runtime.');
 }
 
+function getSourceDataCandidates(opts, relativePath) {
+    return [
+        opts.sourceDataDir && ps.join(opts.sourceDataDir, relativePath),
+        ps.join(opts.projectPath, 'build', 'windows', 'data', relativePath),
+    ].filter(Boolean);
+}
+
+function findFirstExistingSourceDataPath(opts, relativePath) {
+    for (const candidate of getSourceDataCandidates(opts, relativePath)) {
+        if (fs.existsSync(candidate)) {
+            return candidate;
+        }
+    }
+    return null;
+}
+
 async function generateSystemBundle(opts, paths) {
     console.log('[data-gen] Generating system.bundle.js...');
 
@@ -454,6 +470,15 @@ async function generateSystemBundle(opts, paths) {
 
 async function generateSettingsJson(opts, paths) {
     console.log('[data-gen] Generating settings.json...');
+
+    const existingSettingsPath = findFirstExistingSourceDataPath(opts, ps.join('src', 'settings.json'));
+    const outPath = ps.join(paths.dataDir, 'src', 'settings.json');
+    fs.ensureDirSync(ps.dirname(outPath));
+    if (existingSettingsPath) {
+        fs.copySync(existingSettingsPath, outPath);
+        console.log(`[data-gen] Copied settings.json from: ${existingSettingsPath}`);
+        return;
+    }
 
     const projectSettings = readProjectSettings(opts.projectPath);
     const includeModules = getIncludeModules(projectSettings);
@@ -526,8 +551,6 @@ async function generateSettingsJson(opts, paths) {
         },
     };
 
-    const outPath = ps.join(paths.dataDir, 'src', 'settings.json');
-    fs.ensureDirSync(ps.dirname(outPath));
     fs.writeJSONSync(outPath, settings);
     console.log(`[data-gen] Written: ${outPath}`);
 }
@@ -652,10 +675,7 @@ async function generateMainBundle(opts, paths) {
     const mainDir = ps.join(paths.dataDir, 'assets', 'main');
     fs.ensureDirSync(mainDir);
 
-    const fallbackSources = [
-        opts.sourceDataDir && ps.join(opts.sourceDataDir, 'assets', 'main'),
-        ps.join(opts.projectPath, 'build', 'windows', 'data', 'assets', 'main'),
-    ].filter(Boolean);
+    const fallbackSources = getSourceDataCandidates(opts, ps.join('assets', 'main'));
 
     for (const src of fallbackSources) {
         if (fs.existsSync(src) && fs.existsSync(ps.join(src, 'cc.config.json'))) {
@@ -665,8 +685,10 @@ async function generateMainBundle(opts, paths) {
         }
     }
 
-    console.log('[data-gen] No pre-built main bundle found, generating minimal...');
-    generateMinimalMainBundle(opts, mainDir);
+    throw new Error(
+        `[data-gen] Missing main asset bundle. Expected assets/main/cc.config.json from ` +
+        `${fallbackSources.join(' or ')}. Build Windows/native data first instead of generating an empty wasm bundle.`
+    );
 }
 
 function generateMinimalMainBundle(opts, mainDir) {
@@ -721,23 +743,20 @@ async function generateUserScriptBundle(opts, paths) {
     const chunksDir = ps.join(paths.dataDir, 'src', 'chunks');
     fs.ensureDirSync(chunksDir);
 
-    const fallbackSources = [
-        opts.sourceDataDir && ps.join(opts.sourceDataDir, 'src', 'chunks'),
-        ps.join(opts.projectPath, 'build', 'windows', 'data', 'src', 'chunks'),
-    ].filter(Boolean);
+    const fallbackSources = getSourceDataCandidates(opts, ps.join('src', 'chunks'));
 
     for (const src of fallbackSources) {
-        if (fs.existsSync(src)) {
+        if (fs.existsSync(ps.join(src, 'bundle.js'))) {
             fs.copySync(src, chunksDir, { overwrite: true });
             console.log(`[data-gen] Copied user scripts from: ${src}`);
             return;
         }
     }
 
-    const bundlePath = ps.join(chunksDir, 'bundle.js');
-    const minimalBundle = `System.register([], function(_export, _context) { return { execute: function () {\n\n} }; });`;
-    fs.writeFileSync(bundlePath, minimalBundle, 'utf8');
-    console.log(`[data-gen] Written minimal bundle: ${bundlePath}`);
+    throw new Error(
+        `[data-gen] Missing src/chunks/bundle.js. Expected it from ${fallbackSources.join(' or ')}. ` +
+        `Build Windows/native data first instead of packaging an empty wasm script bundle.`
+    );
 }
 
 async function generateEffectBin(opts, paths) {

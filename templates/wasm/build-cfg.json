@@ -5,6 +5,14 @@
             "to": "src"
         },
         {
+            "from": "assets",
+            "to": "assets"
+        },
+        {
+            "from": "remote",
+            "to": "remote"
+        },
+        {
             "from": "res",
             "to": "res"
         },
@@ -13,7 +21,15 @@
             "to": "subpackages"
         },
         {
+            "from": "cocos-js",
+            "to": "cocos-js"
+        },
+        {
             "from": "main.js",
+            "to": ""
+        },
+        {
+            "from": "application.js",
             "to": ""
         },
         {

@@ -53,7 +53,11 @@ GLES2Swapchain::~GLES2Swapchain() {
 void GLES2Swapchain::doInit(const SwapchainInfo &info) {
     const auto *context = GLES2Device::getInstance()->context();
     _gpuSwapchain = ccnew GLES2GPUSwapchain;
+#if CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN
+    EGLNativeWindowType window = 0;
+#else
     auto window = reinterpret_cast<EGLNativeWindowType>(info.windowHandle); //NOLINT[readability-qualified-auto]
+#endif
 
 #if CC_PLATFORM == CC_PLATFORM_ANDROID || CC_PLATFORM == CC_PLATFORM_OHOS
     EGLint nFmt;
@@ -160,7 +164,12 @@ void GLES2Swapchain::doDestroySurface() {
 
 void GLES2Swapchain::doCreateSurface(void *windowHandle) {
     auto *context = GLES2Device::getInstance()->context();
+#if CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN
+    CC_UNUSED_PARAM(windowHandle);
+    EGLNativeWindowType window = 0;
+#else
     auto window = reinterpret_cast<EGLNativeWindowType>(windowHandle); //NOLINT [readability-qualified-auto]
+#endif
 
     EGLint nFmt = 0;
     if (eglGetConfigAttrib(context->eglDisplay, context->eglConfig, EGL_NATIVE_VISUAL_ID, &nFmt) == EGL_FALSE) {

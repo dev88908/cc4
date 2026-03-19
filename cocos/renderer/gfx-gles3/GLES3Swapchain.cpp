@@ -62,7 +62,9 @@ void GLES3Swapchain::doInit(const SwapchainInfo &info) {
     auto height = static_cast<int32_t>(info.height);
     const auto *context = GLES3Device::getInstance()->context();
     _gpuSwapchain = ccnew GLES3GPUSwapchain;
-#if CC_PLATFORM == CC_PLATFORM_LINUX || CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN
+#if CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN
+    EGLNativeWindowType window = 0;
+#elif CC_PLATFORM == CC_PLATFORM_LINUX
     auto window = reinterpret_cast<EGLNativeWindowType>(info.windowHandle);
 #else
     auto *window = reinterpret_cast<EGLNativeWindowType>(info.windowHandle);
@@ -187,7 +189,10 @@ void GLES3Swapchain::doDestroySurface() {
 
 void GLES3Swapchain::doCreateSurface(void *windowHandle) {
     auto *context = GLES3Device::getInstance()->context();
-#if CC_PLATFORM == CC_PLATFORM_LINUX || CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN
+#if CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN
+    CC_UNUSED_PARAM(windowHandle);
+    EGLNativeWindowType window = 0;
+#elif CC_PLATFORM == CC_PLATFORM_LINUX
     auto window = reinterpret_cast<EGLNativeWindowType>(windowHandle);
 #else
     auto *window = reinterpret_cast<EGLNativeWindowType>(windowHandle);
