@@ -1,7 +1,7 @@
 {
   "name": "wasm-builder",
   "version": "1.0.0",
-  "description": "Standalone WASM data directory generator for Cocos Creator projects",
+  "description": "Generate WASM CMake project (templates + cmake configure only)",
   "main": "build-wasm.js",
   "private": true,
   "dependencies": {
