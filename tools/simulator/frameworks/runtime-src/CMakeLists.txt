@@ -284,7 +284,7 @@ elseif(EMSCRIPTEN)
         "SHELL:-s ASYNCIFY=1"
         "SHELL:-s EXIT_RUNTIME=0"
         "SHELL:-s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','addFunction','removeFunction','FS','HEAP8','HEAPU8','HEAP16','HEAPU16','HEAP32','HEAPU32','HEAPF32','HEAPF64']"
-        "SHELL:-s EXPORTED_FUNCTIONS=['_main','_jsvm_dispatch_callback']"
+        "SHELL:-s EXPORTED_FUNCTIONS=['_main','_jsvm_dispatch_callback','_malloc']"
         "SHELL:-s ALLOW_TABLE_GROWTH=1"
         "SHELL:-s USE_LIBJPEG=1"
         "SHELL:-s USE_LIBPNG=1"
