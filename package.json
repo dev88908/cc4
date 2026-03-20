@@ -27,6 +27,7 @@
   },
   "homepage": "https://github.com/cocos/cocos-engine#readme",
   "dependencies": {
-    "@types/node": "^14.0.27"
+    "@types/node": "^14.0.27",
+    "asar": "^3.2.0"
   }
 }

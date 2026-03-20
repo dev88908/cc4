@@ -173,7 +173,6 @@ function generateCMakeConfigFile(compileConfig, outputPath) {
 function getRequiredDataFiles() {
     return [
         'main.js',
-        'application.js',
         ps.join('src', 'settings.json'),
         ps.join('src', 'system.bundle.js'),
         ps.join('assets', 'main', 'cc.config.json'),
@@ -188,19 +187,44 @@ function getMissingFiles(rootDir, requiredFiles) {
     return requiredFiles.filter((relativePath) => !fs.existsSync(ps.join(rootDir, relativePath)));
 }
 
+/**
+ * 检查目录中是否存在指定文件（支持带哈希的文件名）
+ * 例如: cc.config.json 或 cc.config.abc123.json
+ */
+function fileExistsWithHashSupport(rootDir, relativePath) {
+    const fullPath = ps.join(rootDir, relativePath);
+    if (fs.existsSync(fullPath)) {
+        return true;
+    }
+    // 支持带哈希的文件名 (e.g., cc.config.abc123.json)
+    const dir = ps.dirname(fullPath);
+    const basename = ps.basename(fullPath);
+    const ext = ps.extname(basename);
+    const nameWithoutExt = ps.basename(basename, ext);
+
+    if (!fs.existsSync(dir)) {
+        return false;
+    }
+    const files = fs.readdirSync(dir);
+    const regex = new RegExp(`^${nameWithoutExt}\\.[a-f0-9]+${ext}$`);
+    return files.some((f) => regex.test(f));
+}
+
 function isValidWasmDataSource(rootDir) {
     if (!rootDir || !fs.existsSync(rootDir)) {
         return false;
     }
-    return getMissingFiles(rootDir, [
+    const requiredFiles = [
         'main.js',
         ps.join('assets', 'main', 'cc.config.json'),
         ps.join('assets', 'internal', 'index.js'),
-    ]).length === 0;
+    ];
+    return requiredFiles.every((f) => fileExistsWithHashSupport(rootDir, f));
 }
 
 function validateDataDir(dataDir) {
-    const missingFiles = getMissingFiles(dataDir, getRequiredDataFiles());
+    const requiredFiles = getRequiredDataFiles();
+    const missingFiles = requiredFiles.filter((f) => !fileExistsWithHashSupport(dataDir, f));
     if (missingFiles.length > 0) {
         throw new Error(
             `[wasm-builder] Incomplete wasm data directory at ${dataDir}. Missing: ${missingFiles.join(', ')}`
@@ -210,7 +234,7 @@ function validateDataDir(dataDir) {
 
 function copyBuiltinJsbAdapter(opts, dataDir) {
     const adapterDir = ps.join(dataDir, 'jsb-adapter');
-    const sourceDir = ps.join(opts.enginePath, 'bin', 'adapter', 'native');
+    const sourceDir = ps.join(opts.enginePath, 'adapter', 'native');
     const requiredFiles = ['web-adapter.js', 'engine-adapter.js'];
 
     if (!fs.existsSync(sourceDir)) {
@@ -222,11 +246,38 @@ function copyBuiltinJsbAdapter(opts, dataDir) {
     for (const fileName of requiredFiles) {
         const sourcePath = ps.join(sourceDir, fileName);
         const targetPath = ps.join(adapterDir, fileName);
-        if (fs.existsSync(sourcePath) && !fs.existsSync(targetPath)) {
+        if (fs.existsSync(sourcePath)) {
             fs.copySync(sourcePath, targetPath);
             console.log(`[wasm-builder] Copied builtin adapter: ${fileName}`);
         }
     }
+}
+
+/**
+ * 查找带哈希的文件并返回实际的文件名
+ */
+function findHashedFile(dataDir, relativePath) {
+    const fullPath = ps.join(dataDir, relativePath);
+    if (fs.existsSync(fullPath)) {
+        return relativePath;
+    }
+    const dir = ps.dirname(fullPath);
+    const basename = ps.basename(fullPath);
+    const ext = ps.extname(basename);
+    const nameWithoutExt = ps.basename(basename, ext);
+
+    if (!fs.existsSync(dir)) {
+        return relativePath;
+    }
+    const files = fs.readdirSync(dir);
+    const regex = new RegExp(`^${nameWithoutExt}\\.[a-f0-9]+${ext}$`);
+    const match = files.find((f) => regex.test(f));
+    if (!match) {
+        return relativePath;
+    }
+    // 返回相对于 dataDir 的路径
+    const relativeDir = ps.relative(dataDir, dir);
+    return ps.join(relativeDir, match);
 }
 
 function patchMainJs(mainJsPath, dataDir) {
@@ -253,6 +304,11 @@ function patchMainJs(mainJsPath, dataDir) {
         throw new Error(`[wasm-builder] Unable to patch legacy main.js at ${mainJsPath}`);
     }
 
+    // 查找带哈希的实际文件名
+    const bundleFile = findHashedFile(dataDir, 'src/chunks/bundle.js');
+    const internalFile = findHashedFile(dataDir, 'assets/internal/index.js');
+    const mainFile = findHashedFile(dataDir, 'assets/main/index.js');
+
     const prefix = content.slice(0, legacyIndex);
     const importMapFileExpr = importMapMatch[1].trim();
     const applicationJsExpr = applicationMatch[1].trim();
@@ -270,9 +326,9 @@ const importMap = ${importMapLiteral};
 
 // 预加载 chunks 包，确保 System.register 在 import 前完成
 try {
-    require('src/chunks/bundle.js');
-    require('assets/internal/index.js');
-    require('assets/main/index.js');
+    require('${bundleFile}');
+    require('${internalFile}');
+    require('${mainFile}');
 } catch (e) {
     console.warn('[WASM] Preload chunks:', e.message);
 }
@@ -284,11 +340,11 @@ System.warmup({
         const path = urlNoSchema.startsWith('/') ? urlNoSchema.substr(1) : urlNoSchema;
         let loadPath = path;
         if (path.includes('rollupPluginModLoBabelHelpers') || path.includes('BabelHelpers')) {
-            loadPath = 'src/chunks/bundle.js';
+            loadPath = '${bundleFile}';
         } else if (path.includes('_virtual/main')) {
-            loadPath = 'assets/main/index.js';
+            loadPath = '${mainFile}';
         } else if (path.includes('builtin-pipeline') || path.includes('_virtual/internal')) {
-            loadPath = 'assets/internal/index.js';
+            loadPath = '${internalFile}';
         }
         require(loadPath);
     },
@@ -299,6 +355,7 @@ System.import(${applicationJsExpr})
     return new Application();
 }).then((application) => {
     return System.import('cc').then((cc) => {
+        require('jsb-adapter/web-adapter.js');
         require('jsb-adapter/engine-adapter.js');
         return application.init(cc);
     }).then(() => {
@@ -313,10 +370,39 @@ System.import(${applicationJsExpr})
     console.log(`[wasm-builder] Patched legacy main.js at ${mainJsPath}`);
 }
 
+/**
+ * 查找带哈希的文件（支持如 application.js -> application.abc123.js）
+ */
+function findFileWithHashSupport(srcRoot, filename) {
+    const fullPath = ps.join(srcRoot, filename);
+    if (fs.existsSync(fullPath)) {
+        return fullPath;
+    }
+    // 查找带哈希的文件
+    const dir = ps.dirname(fullPath);
+    const basename = ps.basename(fullPath);
+    const ext = ps.extname(basename);
+    const nameWithoutExt = ps.basename(basename, ext);
+
+    if (!fs.existsSync(dir)) {
+        return null;
+    }
+    const files = fs.readdirSync(dir);
+    const regex = new RegExp(`^${nameWithoutExt}\\.[a-f0-9]+${ext}$`);
+    const match = files.find((f) => regex.test(f));
+    return match ? ps.join(dir, match) : null;
+}
+
 async function copyResourcesFrom(srcRoot, dataDir, copyResources) {
     for (const item of copyResources) {
-        const srcPath = ps.join(srcRoot, item.from);
-        const dstPath = item.to ? ps.join(dataDir, item.to) : ps.join(dataDir, ps.basename(item.from));
+        const srcPath = findFileWithHashSupport(srcRoot, item.from);
+        if (!srcPath) {
+            continue;
+        }
+        const dstFilename = item.to ? item.from : ps.basename(item.from);
+        // 如果源文件有哈希，保留哈希文件名
+        const srcBasename = ps.basename(srcPath);
+        const dstPath = item.to ? ps.join(dataDir, item.to) : ps.join(dataDir, srcBasename);
         if (fs.existsSync(srcPath)) {
             fs.ensureDirSync(ps.dirname(dstPath));
             await fs.copy(srcPath, dstPath, { overwrite: true });
@@ -367,11 +453,14 @@ async function loadCopyResources(opts, paths) {
     return copyResources;
 }
 
-async function copyWindowsBuildData(opts, paths) {
+async function copyPlatformBuildData(opts, paths) {
     const copyResources = await loadCopyResources(opts, paths);
 
+    const isWindows = process.platform === 'win32';
+    // WASM 使用 GLES 渲染，所以从 android 平台拷贝（而非 mac）
+    const platformDataDir = isWindows ? 'windows' : 'android';
     const srcCandidates = [
-        ps.join(paths.buildRoot, 'windows', 'data'),
+        ps.join(paths.buildRoot, platformDataDir, 'data'),
         ps.join(paths.buildRoot, 'jsb-link'),
         ps.join(paths.buildRoot, 'native'),
     ];
@@ -438,7 +527,6 @@ function runCommand(cmd, args, cwd) {
         const proc = spawn(cmd, args, {
             cwd,
             stdio: 'inherit',
-            shell: true,
         });
 
         proc.on('close', (code) => {
@@ -485,7 +573,7 @@ async function stepCreate(opts, paths, compileConfig) {
     console.log('══════════════════════════════════════════\n');
 
     await stepCopyTemplates(opts, paths);
-    await copyWindowsBuildData(opts, paths);
+    await copyPlatformBuildData(opts, paths);
 
     const configPath = ps.join(paths.buildDir, 'cocos.compile.config.json');
     fs.ensureDirSync(paths.buildDir);

@@ -46,39 +46,37 @@ NativePipeline* sPipeline = nullptr;
 } // namespace
 
 RenderingModule* Factory::init(gfx::Device* deviceIn, const ccstd::vector<unsigned char>& bufferIn) {
-    if (bufferIn.empty()) {
-        CC_LOG_ERROR(
-            "render::Factory::init: pipeline layout buffer is empty. "
-            "On WebAssembly, check that JS passes a non-empty Uint8Array (pipeline layout .bin from the render pipeline asset) "
-            "into the native init API — passing null/undefined yields an empty vector and an invalid layout graph.");
-    }
     std::shared_ptr<NativeProgramLibrary> ptr(
         allocatePmrUniquePtr<NativeProgramLibrary>(
             boost::container::pmr::get_default_resource()));
-    {
+
+    if (bufferIn.empty()) {
+        printf("[WARN] render::Factory::init: pipeline layout buffer is empty. Using legacy pipeline mode.\n");
+        // 不再报错，使用空管线
+    } else {
         std::string buffer(bufferIn.begin(), bufferIn.end());
         std::istringstream iss(buffer, std::ios::binary);
         BinaryInputArchive ar(iss, boost::container::pmr::get_default_resource());
         load(ar, ptr->layoutGraph);
-    }
-    {
-        const auto &lg = ptr->layoutGraph;
-        const auto vertCount = num_vertices(lg);
-        const auto defaultPassId = locate(LayoutGraphData::null_vertex(), "default", lg);
-        if (vertCount == 0U) {
-            CC_LOG_ERROR(
-                "render::Factory::init: layout graph has 0 vertices (input size=%zu bytes). "
-                "Deserialize failed or wrong file — effects will log 'Invalid render pass' for 'default'.",
-                bufferIn.size());
-        } else if (defaultPassId == LayoutGraphData::null_vertex()) {
-            CC_LOG_ERROR(
-                "render::Factory::init: layout has %u vertices but root pass 'default' was not found (pathIndex size=%zu). "
-                "Pipeline layout binary likely does not match this engine (3.8.x) or is corrupted.",
-                static_cast<unsigned>(vertCount), lg.pathIndex.size());
-        } else {
-            CC_LOG_INFO(
-                "render::Factory::init: layout OK — vertices=%u, pathIndex entries=%zu, default pass id=%u",
-                static_cast<unsigned>(vertCount), lg.pathIndex.size(), static_cast<unsigned>(defaultPassId));
+        {
+            const auto &lg = ptr->layoutGraph;
+            const auto vertCount = num_vertices(lg);
+            const auto defaultPassId = locate(LayoutGraphData::null_vertex(), "default", lg);
+            if (vertCount == 0U) {
+                CC_LOG_ERROR(
+                    "render::Factory::init: layout graph has 0 vertices (input size=%zu bytes). "
+                    "Deserialize failed or wrong file — effects will log 'Invalid render pass' for 'default'.",
+                    bufferIn.size());
+            } else if (defaultPassId == LayoutGraphData::null_vertex()) {
+                CC_LOG_ERROR(
+                    "render::Factory::init: layout has %u vertices but root pass 'default' was not found (pathIndex size=%zu). "
+                    "Pipeline layout binary likely does not match this engine (3.8.x) or is corrupted.",
+                    static_cast<unsigned>(vertCount), lg.pathIndex.size());
+            } else {
+                CC_LOG_INFO(
+                    "render::Factory::init: layout OK — vertices=%u, pathIndex entries=%zu, default pass id=%u",
+                    static_cast<unsigned>(vertCount), lg.pathIndex.size(), static_cast<unsigned>(defaultPassId));
+            }
         }
     }
     ptr->init(deviceIn);

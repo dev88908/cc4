@@ -391,9 +391,10 @@ void EventDispatcher::dispatchTickEvent(float /*dt*/) {
     }
 
     se::AutoHandleScope scope;
-    if (tickVal.isUndefined()) {
-        se::ScriptEngine::getInstance()->getGlobalObject()->getProperty("gameTick", &tickVal);
-    }
+
+    // Always get fresh gameTick to avoid caching issues
+    se::Value tickVal;
+    se::ScriptEngine::getInstance()->getGlobalObject()->getProperty("gameTick", &tickVal);
 
     static std::chrono::steady_clock::time_point prevTime;
     prevTime = std::chrono::steady_clock::now();
@@ -401,7 +402,7 @@ void EventDispatcher::dispatchTickEvent(float /*dt*/) {
     int64_t milliSeconds = std::chrono::duration_cast<std::chrono::milliseconds>(prevTime - se::ScriptEngine::getInstance()->getStartTime()).count();
     tickArgsValArr[0].setDouble(static_cast<double>(milliSeconds));
 
-    if (!tickVal.isUndefined()) {
+    if (tickVal.isObject() && tickVal.toObject()->isFunction()) {
         tickVal.toObject()->call(tickArgsValArr, nullptr);
     }
 }
