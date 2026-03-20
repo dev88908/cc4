@@ -60,7 +60,11 @@ public:
     virtual void unload(void *texture);
 };
 
+#ifdef __EMSCRIPTEN__
+class Cocos2dExtension : public SpineExtension {
+#else
 class Cocos2dExtension : public DefaultSpineExtension {
+#endif
 public:
     Cocos2dExtension();
 
@@ -70,6 +74,11 @@ public:
 
 protected:
     virtual char *_readFile(const String &path, int *length);
+#ifdef __EMSCRIPTEN__
+    virtual void *_alloc(size_t size, const char *file, int line);
+    virtual void *_calloc(size_t size, const char *file, int line);
+    virtual void *_realloc(void *ptr, size_t size, const char *file, int line);
+#endif
 };
 
 typedef void (*SpineObjectDisposeCallback)(void *);

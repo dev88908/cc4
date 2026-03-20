@@ -95,15 +95,14 @@ public:
 #endif
 
 #ifdef CC_USE_GLES3
-    #if CC_USE_XR || CC_USE_AR_MODULE
+    #if CC_USE_XR || CC_USE_AR_MODULE || CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN
         Device::isSupportDetachDeviceThread = false;
     #endif
         if (tryCreate<GLES3Device>(info, &device)) return device;
 #endif
 
 #ifdef CC_USE_GLES2
-    // arcore & arengine currently only supports gles, session update requires gl context
-    #if CC_USE_AR_MODULE
+    #if CC_USE_AR_MODULE || CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN
         Device::isSupportDetachDeviceThread = false;
     #endif
         if (tryCreate<GLES2Device>(info, &device)) return device;

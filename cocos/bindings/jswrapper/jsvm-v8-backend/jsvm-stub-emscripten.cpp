@@ -20,7 +20,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <cstdio>
-#include <vector>
 
 // ── Concrete backing structs ──────────────────────────────────────────────────
 
@@ -43,10 +42,13 @@ struct JSVM_Value__ {
 };
 
 // CallbackInfo carries the live JS call context so OH_JSVM_GetCbInfo works.
+static constexpr int CBINFO_MAX_ARGS = 20;
+
 struct JSVM_CallbackInfo__ {
     int  thisRef{0};
     int  newTargetRef{0};
-    std::vector<int> argRefs;   // JS ref indices for each argument
+    int  argCount{0};
+    int  argRefs[CBINFO_MAX_ARGS];
     void *cbData{nullptr};
 };
 
@@ -167,14 +169,37 @@ EM_JS(int, jsvm_make_string_utf8, (const char *s, int len), {
     return Module._jsvmRefs.length - 1;
 });
 
+EM_JS(int, jsvm_make_string_utf16, (const char16_t *s, int len), {
+    if (!Module._jsvmRefs) { Module._jsvmRefs = [undefined]; }
+    var ptr = s >> 1;
+    var end = ptr;
+    if (len < 0) {
+        while (HEAPU16[end] !== 0) ++end;
+    } else {
+        end = ptr + len;
+    }
+    var str = "";
+    while (ptr < end) {
+        var chunkEnd = Math.min(ptr + 1024, end);
+        var chunk = [];
+        for (var i = ptr; i < chunkEnd; ++i) {
+            chunk.push(HEAPU16[i]);
+        }
+        str += String.fromCharCode.apply(null, chunk);
+        ptr = chunkEnd;
+    }
+    Module._jsvmRefs.push(str);
+    return Module._jsvmRefs.length - 1;
+});
+
 EM_JS(int, jsvm_get_string_utf8_len, (int ref), {
-    var v = Module._jsvmRefs ? Module._jsvmRefs[ref] : '';
+    var v = Module._jsvmRefs ? Module._jsvmRefs[ref] : "";
     if (typeof v !== 'string') v = String(v);
     return lengthBytesUTF8(v);
 });
 
 EM_JS(void, jsvm_get_string_utf8_buf, (int ref, char *buf, int bufsize), {
-    var v = Module._jsvmRefs ? Module._jsvmRefs[ref] : '';
+    var v = Module._jsvmRefs ? Module._jsvmRefs[ref] : "";
     if (typeof v !== 'string') v = String(v);
     stringToUTF8(v, buf, bufsize);
 });
@@ -185,10 +210,196 @@ EM_JS(int, jsvm_make_object, (), {
     return Module._jsvmRefs.length - 1;
 });
 
+EM_JS(int, jsvm_new_instance, (int ctorRef, int argc, int *argRefs), {
+    try {
+        if (!Module._jsvmRefs) { Module._jsvmRefs = [undefined]; }
+        var ctor = Module._jsvmRefs[ctorRef];
+        if (typeof ctor !== 'function') return 0;
+        var args = [];
+        for (var i = 0; i < argc; i++) {
+            args.push(Module._jsvmRefs[HEAP32[(argRefs >> 2) + i]]);
+        }
+        var result = Reflect.construct(ctor, args);
+        Module._jsvmRefs.push(result);
+        return Module._jsvmRefs.length - 1;
+    } catch (e) {
+        console.error("jsvm_new_instance error:", e);
+        return 0;
+    }
+});
+
 EM_JS(int, jsvm_make_array, (int len), {
     if (!Module._jsvmRefs) { Module._jsvmRefs = [undefined]; }
     Module._jsvmRefs.push(new Array(len));
     return Module._jsvmRefs.length - 1;
+});
+
+EM_JS(int, jsvm_get_property_names, (int ref), {
+    if (!Module._jsvmRefs) { Module._jsvmRefs = [undefined]; }
+    var obj = Module._jsvmRefs[ref];
+    var keys = [];
+    if (obj !== undefined && obj !== null) {
+        try {
+            keys = Object.keys(obj);
+        } catch (e) {
+            keys = [];
+        }
+    }
+    Module._jsvmRefs.push(keys);
+    return Module._jsvmRefs.length - 1;
+});
+
+EM_JS(int, jsvm_is_arraybuffer_ref, (int ref), {
+    var v = Module._jsvmRefs ? Module._jsvmRefs[ref] : undefined;
+    return (v instanceof ArrayBuffer) || !!(v && v.__jsvmArrayBufferTag) ? 1 : 0;
+});
+
+EM_JS(int, jsvm_is_typedarray_ref, (int ref), {
+    var v = Module._jsvmRefs ? Module._jsvmRefs[ref] : undefined;
+    return (ArrayBuffer.isView(v) && !(v instanceof DataView)) ? 1 : 0;
+});
+
+EM_JS(int, jsvm_create_arraybuffer, (int byteLength), {
+    if (!Module._jsvmRefs) { Module._jsvmRefs = [undefined]; }
+    var ptr = _malloc(byteLength > 0 ? byteLength : 1);
+    var obj = {
+        __jsvmArrayBufferTag: true,
+        __jsvmArrayBufferPtr: ptr,
+        __jsvmArrayBufferLen: byteLength
+    };
+    Module._jsvmRefs.push(obj);
+    return Module._jsvmRefs.length - 1;
+});
+
+EM_JS(int, jsvm_create_external_arraybuffer, (int ptr, int byteLength), {
+    if (!Module._jsvmRefs) { Module._jsvmRefs = [undefined]; }
+    var obj = {
+        __jsvmArrayBufferTag: true,
+        __jsvmArrayBufferPtr: ptr >>> 0,
+        __jsvmArrayBufferLen: byteLength >>> 0
+    };
+    Module._jsvmRefs.push(obj);
+    return Module._jsvmRefs.length - 1;
+});
+
+EM_JS(void, jsvm_arraybuffer_info, (int ref, int *outBuf), {
+    var obj = Module._jsvmRefs ? Module._jsvmRefs[ref] : undefined;
+    var ptr = 0;
+    var len = 0;
+    if (obj instanceof ArrayBuffer) {
+        len = obj.byteLength >>> 0;
+        if (obj.__jsvmArrayBufferPtr === undefined || obj.__jsvmArrayBufferLen !== len) {
+            ptr = _malloc(len > 0 ? len : 1);
+            if (len > 0) HEAPU8.set(new Uint8Array(obj), ptr);
+            obj.__jsvmArrayBufferPtr = ptr;
+            obj.__jsvmArrayBufferLen = len;
+        } else {
+            ptr = obj.__jsvmArrayBufferPtr >>> 0;
+        }
+    } else if (obj && obj.__jsvmArrayBufferTag) {
+        ptr = obj.__jsvmArrayBufferPtr >>> 0;
+        len = obj.__jsvmArrayBufferLen >>> 0;
+    }
+    HEAP32[(outBuf >> 2)] = ptr | 0;
+    HEAP32[(outBuf >> 2) + 1] = len | 0;
+});
+
+EM_JS(int, jsvm_create_typedarray, (int type, int length, int arraybufferRef, int byteOffset), {
+    if (!Module._jsvmRefs) { Module._jsvmRefs = [undefined]; }
+    var bufferObj = Module._jsvmRefs[arraybufferRef];
+    var ctor = null;
+    switch (type) {
+        case 0: ctor = Int8Array; break;
+        case 1: ctor = Uint8Array; break;
+        case 2: ctor = Uint8ClampedArray; break;
+        case 3: ctor = Int16Array; break;
+        case 4: ctor = Uint16Array; break;
+        case 5: ctor = Int32Array; break;
+        case 6: ctor = Uint32Array; break;
+        case 7: ctor = Float32Array; break;
+        case 8: ctor = Float64Array; break;
+        case 9: ctor = BigInt64Array; break;
+        case 10: ctor = BigUint64Array; break;
+        default: return 0;
+    }
+
+    var view = null;
+    if (bufferObj && bufferObj.__jsvmArrayBufferTag) {
+        var ptr = (bufferObj.__jsvmArrayBufferPtr >>> 0) + (byteOffset >>> 0);
+        view = new ctor(HEAPU8.buffer, ptr, length);
+        view.__jsvmTypedArrayPtr = ptr;
+        view.__jsvmTypedArrayLength = length;
+        view.__jsvmTypedArrayType = type;
+        view.__jsvmArrayBufferRef = arraybufferRef;
+    } else if (bufferObj instanceof ArrayBuffer) {
+        view = new ctor(bufferObj, byteOffset, length);
+    } else {
+        return 0;
+    }
+
+    Module._jsvmRefs.push(view);
+    return Module._jsvmRefs.length - 1;
+});
+
+EM_JS(void, jsvm_typedarray_info, (int ref, int *outBuf), {
+    var obj = Module._jsvmRefs ? Module._jsvmRefs[ref] : undefined;
+    var type = 1;
+    var length = 0;
+    var dataPtr = 0;
+    var arraybufferRef = 0;
+    var byteOffset = 0;
+
+    if (ArrayBuffer.isView(obj) && !(obj instanceof DataView)) {
+        if (obj instanceof Int8Array) type = 0;
+        else if (obj instanceof Uint8Array) type = 1;
+        else if (obj instanceof Uint8ClampedArray) type = 2;
+        else if (obj instanceof Int16Array) type = 3;
+        else if (obj instanceof Uint16Array) type = 4;
+        else if (obj instanceof Int32Array) type = 5;
+        else if (obj instanceof Uint32Array) type = 6;
+        else if (obj instanceof Float32Array) type = 7;
+        else if (obj instanceof Float64Array) type = 8;
+        else if (obj instanceof BigInt64Array) type = 9;
+        else if (obj instanceof BigUint64Array) type = 10;
+
+        length = obj.length >>> 0;
+        byteOffset = obj.byteOffset >>> 0;
+
+        if (obj.__jsvmTypedArrayPtr !== undefined) {
+            dataPtr = obj.__jsvmTypedArrayPtr >>> 0;
+        } else {
+            var buffer = obj.buffer;
+            var bufferPtr = 0;
+            if (buffer && buffer.__jsvmArrayBufferTag) {
+                bufferPtr = buffer.__jsvmArrayBufferPtr >>> 0;
+            } else if (buffer instanceof ArrayBuffer) {
+                if (buffer.__jsvmArrayBufferPtr === undefined || buffer.__jsvmArrayBufferLen !== buffer.byteLength) {
+                    bufferPtr = _malloc(buffer.byteLength > 0 ? buffer.byteLength : 1);
+                    if (buffer.byteLength > 0) HEAPU8.set(new Uint8Array(buffer), bufferPtr);
+                    buffer.__jsvmArrayBufferPtr = bufferPtr;
+                    buffer.__jsvmArrayBufferLen = buffer.byteLength >>> 0;
+                } else {
+                    bufferPtr = buffer.__jsvmArrayBufferPtr >>> 0;
+                }
+            }
+            dataPtr = (bufferPtr + byteOffset) >>> 0;
+            obj.__jsvmTypedArrayPtr = dataPtr;
+        }
+
+        var bufferRef = obj.__jsvmArrayBufferRef;
+        if (bufferRef === undefined) {
+            Module._jsvmRefs.push(obj.buffer);
+            bufferRef = Module._jsvmRefs.length - 1;
+            obj.__jsvmArrayBufferRef = bufferRef;
+        }
+        arraybufferRef = bufferRef >>> 0;
+    }
+
+    HEAP32[(outBuf >> 2)] = type | 0;
+    HEAP32[(outBuf >> 2) + 1] = length | 0;
+    HEAP32[(outBuf >> 2) + 2] = dataPtr | 0;
+    HEAP32[(outBuf >> 2) + 3] = arraybufferRef | 0;
+    HEAP32[(outBuf >> 2) + 4] = byteOffset | 0;
 });
 
 EM_JS(int, jsvm_is_array, (int ref), {
@@ -217,7 +428,7 @@ EM_JS(void, jsvm_set_element, (int ref, int idx, int valRef), {
 
 EM_JS(int, jsvm_json_parse, (int strRef), {
     try {
-        var s = Module._jsvmRefs ? Module._jsvmRefs[strRef] : '';
+        var s = Module._jsvmRefs ? Module._jsvmRefs[strRef] : "";
         if (!Module._jsvmRefs) { Module._jsvmRefs = [undefined]; }
         Module._jsvmRefs.push(JSON.parse(s));
         return Module._jsvmRefs.length - 1;
@@ -253,33 +464,27 @@ EM_JS(int, jsvm_push_ref, (int ref), {
     return Module._jsvmRefs.length - 1;
 });
 
-// Get the number of arguments passed to the current JS call frame.
-// We store call-frame info in Module._jsvmCallStack (pushed by jsvm_make_function_js).
-EM_JS(int, jsvm_cbinfo_argc, (int cbinfoIdx), {
+// Batch-fetch all callback info in a single EM_JS call to minimize
+// WASM↔JS boundary crossings (each crossing consumes a JS call-stack frame).
+// outBuf layout (int32 words): [thisRef, newTargetRef, arg0Ref, arg1Ref, ...]
+// Returns actual argument count.
+EM_JS(int, jsvm_cbinfo_get_all, (int cbinfoIdx, int *outBuf, int maxArgs), {
     var frame = Module._jsvmCallStack && Module._jsvmCallStack[cbinfoIdx];
-    return frame ? frame.args.length : 0;
-});
-
-EM_JS(int, jsvm_cbinfo_arg, (int cbinfoIdx, int i), {
-    if (!Module._jsvmRefs) { Module._jsvmRefs = [undefined]; }
-    var frame = Module._jsvmCallStack && Module._jsvmCallStack[cbinfoIdx];
-    if (!frame || i >= frame.args.length) { Module._jsvmRefs.push(undefined); return Module._jsvmRefs.length-1; }
-    Module._jsvmRefs.push(frame.args[i]);
-    return Module._jsvmRefs.length - 1;
-});
-
-EM_JS(int, jsvm_cbinfo_this, (int cbinfoIdx), {
-    if (!Module._jsvmRefs) { Module._jsvmRefs = [undefined]; }
-    var frame = Module._jsvmCallStack && Module._jsvmCallStack[cbinfoIdx];
-    Module._jsvmRefs.push(frame ? frame.thisArg : undefined);
-    return Module._jsvmRefs.length - 1;
-});
-
-EM_JS(int, jsvm_cbinfo_new_target, (int cbinfoIdx), {
-    if (!Module._jsvmRefs) { Module._jsvmRefs = [undefined]; }
-    var frame = Module._jsvmCallStack && Module._jsvmCallStack[cbinfoIdx];
-    Module._jsvmRefs.push(frame ? frame.newTarget : undefined);
-    return Module._jsvmRefs.length - 1;
+    if (!frame) return 0;
+    var refs = Module._jsvmRefs;
+    if (!refs) { refs = Module._jsvmRefs = [undefined]; }
+    refs.push(frame.thisArg);
+    HEAP32[(outBuf>>2)] = refs.length - 1;
+    refs.push(frame.newTarget || undefined);
+    HEAP32[(outBuf>>2)+1] = refs.length - 1;
+    var argc = frame.args.length;
+    if (argc > maxArgs) argc = maxArgs;
+    var fargs = frame.args;
+    for (var i = 0; i < argc; i++) {
+        refs.push(fargs[i]);
+        HEAP32[(outBuf>>2)+2+i] = refs.length - 1;
+    }
+    return argc;
 });
 
 // Store the return value from a C++ callback invocation back into the JS call frame.
@@ -296,7 +501,7 @@ EM_JS(int, jsvm_make_function_js, (const char *name, void *cbStructPtr, void *en
     if (!Module._jsvmRefs)     { Module._jsvmRefs = [undefined]; }
     if (!Module._jsvmCallStack){ Module._jsvmCallStack = [null]; } // index 0 unused
 
-    var fnName = name ? UTF8ToString(name) : '';
+    var fnName = name ? UTF8ToString(name) : "";
     var fn = function() {
         // Push a call frame so OH_JSVM_GetCbInfo can read it.
         var frame = {
@@ -387,21 +592,19 @@ EMSCRIPTEN_KEEPALIVE
 void jsvm_dispatch_callback(JSVM_Env__ *env, JSVM_CallbackStruct *cb, int cbinfoIdx) {
     if (!cb || !cb->callback) return;
 
-    // Build a JSVM_CallbackInfo__ from the JS frame data.
+    // Build JSVM_CallbackInfo__ with a single EM_JS call (no per-arg crossings).
     JSVM_CallbackInfo__ info;
     info.cbData = cb->data;
-    info.thisRef    = jsvm_cbinfo_this(cbinfoIdx);
-    info.newTargetRef = jsvm_cbinfo_new_target(cbinfoIdx);
-    int argc = jsvm_cbinfo_argc(cbinfoIdx);
-    info.argRefs.resize(argc);
-    for (int i = 0; i < argc; i++) {
-        info.argRefs[i] = jsvm_cbinfo_arg(cbinfoIdx, i);
-    }
+    int buf[2 + CBINFO_MAX_ARGS];
+    int argc = jsvm_cbinfo_get_all(cbinfoIdx, buf, CBINFO_MAX_ARGS);
+    info.thisRef     = buf[0];
+    info.newTargetRef = buf[1];
+    info.argCount    = argc;
+    for (int i = 0; i < argc; i++)
+        info.argRefs[i] = buf[2 + i];
 
-    // Invoke the real C++ callback.
     JSVM_Value result = cb->callback(env, &info);
 
-    // Store the result back into the JS frame.
     int resultRef = result ? result->ref : jsvm_make_undefined();
     jsvm_cbinfo_set_result(cbinfoIdx, resultRef);
 }
@@ -547,7 +750,7 @@ JSVM_Status OH_JSVM_SetNamedProperty(JSVM_Env env, JSVM_Value object,
 }
 JSVM_Status OH_JSVM_GetPropertyNames(JSVM_Env env, JSVM_Value object, JSVM_Value *result) {
     if (!result) return JSVM_INVALID_ARG;
-    *result = allocValue(jsvm_make_array(0));
+    *result = allocValue(jsvm_get_property_names(object ? object->ref : 0));
     return JSVM_OK;
 }
 
@@ -601,9 +804,12 @@ JSVM_Status OH_JSVM_CallFunction(JSVM_Env env, JSVM_Value recv, JSVM_Value func,
 JSVM_Status OH_JSVM_NewInstance(JSVM_Env env, JSVM_Value constructor,
                                  size_t argc, const JSVM_Value *argv, JSVM_Value *result) {
     if (!result) return JSVM_INVALID_ARG;
-    // Call the constructor function with 'new' semantics via JS eval is complex;
-    // for now create a plain object – the C++ ctor callback will wrap native data onto it.
-    *result = allocValue(jsvm_make_object());
+    int *argRefs = argc > 0 ? (int*)alloca(argc * sizeof(int)) : nullptr;
+    for (size_t i = 0; i < argc; i++) {
+        argRefs[i] = argv[i] ? argv[i]->ref : 0;
+    }
+    int ctorRef = constructor ? constructor->ref : 0;
+    *result = allocValue(jsvm_new_instance(ctorRef, (int)argc, argRefs));
     return JSVM_OK;
 }
 
@@ -621,6 +827,9 @@ JSVM_Status OH_JSVM_DefineClass(JSVM_Env env, const char *utf8name, size_t lengt
     // Create a prototype object and attach it.
     int protoRef = jsvm_make_object();
     jsvm_set_named_property(ctorRef, "prototype", protoRef);
+    // Mirror real JS class/function semantics so `prototype.constructor`
+    // lookups used by manual bindings (for example `__nativeFields__`) work.
+    jsvm_set_named_property(protoRef, "constructor", ctorRef);
 
     // Install instance and static properties.
     for (size_t i = 0; i < propCount; i++) {
@@ -654,16 +863,20 @@ JSVM_Status OH_JSVM_GetCbInfo(JSVM_Env env, JSVM_CallbackInfo cbinfo,
         if (data) *data = nullptr;
         return JSVM_OK;
     }
-    int available = (int)cbinfo->argRefs.size();
+    int available = cbinfo->argCount;
     if (argc) {
         int requested = (int)*argc;
         if (argv && requested > 0) {
             int fill = requested < available ? requested : available;
             for (int i = 0; i < fill; i++)
                 argv[i] = allocValue(cbinfo->argRefs[i]);
-            // Fill remaining with undefined.
-            for (int i = fill; i < requested; i++)
-                argv[i] = allocValue(jsvm_make_undefined());
+            if (fill < requested) {
+                // Cache one undefined ref to avoid per-slot EM_JS calls.
+                static int s_undefinedRef = 0;
+                if (!s_undefinedRef) s_undefinedRef = jsvm_make_undefined();
+                for (int i = fill; i < requested; i++)
+                    argv[i] = allocValue(s_undefinedRef);
+            }
         }
         *argc = (size_t)available;
     }
@@ -714,11 +927,11 @@ JSVM_Status OH_JSVM_IsArray(JSVM_Env env, JSVM_Value value, bool *result) {
     return JSVM_OK;
 }
 JSVM_Status OH_JSVM_IsArraybuffer(JSVM_Env env, JSVM_Value value, bool *result) {
-    if (result) *result = false;
+    if (result) *result = value ? (jsvm_is_arraybuffer_ref(value->ref) != 0) : false;
     return JSVM_OK;
 }
 JSVM_Status OH_JSVM_IsTypedarray(JSVM_Env env, JSVM_Value value, bool *result) {
-    if (result) *result = false;
+    if (result) *result = value ? (jsvm_is_typedarray_ref(value->ref) != 0) : false;
     return JSVM_OK;
 }
 JSVM_Status OH_JSVM_IsError(JSVM_Env env, JSVM_Value value, bool *result) {
@@ -769,7 +982,7 @@ JSVM_Status OH_JSVM_CreateStringUtf8(JSVM_Env env, const char *str,
 JSVM_Status OH_JSVM_CreateStringUtf16(JSVM_Env env, const char16_t *str,
                                        size_t length, JSVM_Value *result) {
     if (!result) return JSVM_INVALID_ARG;
-    *result = allocValue(jsvm_make_undefined());
+    *result = allocValue(jsvm_make_string_utf16(str, (int)length));
     return JSVM_OK;
 }
 JSVM_Status OH_JSVM_GetValueStringUtf8(JSVM_Env env, JSVM_Value value,
@@ -822,35 +1035,42 @@ JSVM_Status OH_JSVM_SetElement(JSVM_Env env, JSVM_Value object, uint32_t index, 
 }
 JSVM_Status OH_JSVM_CreateArraybuffer(JSVM_Env env, size_t byteLength,
                                        void **data, JSVM_Value *result) {
-    if (data) *data = nullptr;
-    if (result) *result = allocValue(jsvm_make_undefined());
+    int info[2] = {0, 0};
+    int ref = jsvm_create_arraybuffer((int)byteLength);
+    jsvm_arraybuffer_info(ref, info);
+    if (data) *data = reinterpret_cast<void *>(static_cast<uintptr_t>(info[0]));
+    if (result) *result = allocValue(ref);
     return JSVM_OK;
 }
 JSVM_Status OH_JSVM_GetArraybufferInfo(JSVM_Env env, JSVM_Value arraybuffer,
                                         void **data, size_t *byteLength) {
-    if (data) *data = nullptr;
-    if (byteLength) *byteLength = 0;
+    int info[2] = {0, 0};
+    jsvm_arraybuffer_info(arraybuffer ? arraybuffer->ref : 0, info);
+    if (data) *data = reinterpret_cast<void *>(static_cast<uintptr_t>(info[0]));
+    if (byteLength) *byteLength = static_cast<size_t>(info[1]);
     return JSVM_OK;
 }
 JSVM_Status OH_JSVM_CreateTypedarray(JSVM_Env env, JSVM_TypedarrayType type,
                                       size_t length, JSVM_Value arraybuffer,
                                       size_t byteOffset, JSVM_Value *result) {
-    if (result) *result = allocValue(jsvm_make_undefined());
+    if (result) *result = allocValue(jsvm_create_typedarray(static_cast<int>(type), (int)length, arraybuffer ? arraybuffer->ref : 0, (int)byteOffset));
     return JSVM_OK;
 }
 JSVM_Status OH_JSVM_GetTypedarrayInfo(JSVM_Env env, JSVM_Value typedarray,
                                        JSVM_TypedarrayType *type, size_t *length,
                                        void **data, JSVM_Value *arraybuffer, size_t *byteOffset) {
-    if (type) *type = JSVM_UINT8_ARRAY;
-    if (length) *length = 0;
-    if (data) *data = nullptr;
-    if (arraybuffer) *arraybuffer = allocValue(jsvm_make_undefined());
-    if (byteOffset) *byteOffset = 0;
+    int info[5] = {0, 0, 0, 0, 0};
+    jsvm_typedarray_info(typedarray ? typedarray->ref : 0, info);
+    if (type) *type = static_cast<JSVM_TypedarrayType>(info[0]);
+    if (length) *length = static_cast<size_t>(info[1]);
+    if (data) *data = reinterpret_cast<void *>(static_cast<uintptr_t>(info[2]));
+    if (arraybuffer) *arraybuffer = allocValue(info[3]);
+    if (byteOffset) *byteOffset = static_cast<size_t>(info[4]);
     return JSVM_OK;
 }
 JSVM_Status OH_JSVM_CreateArrayBufferFromBackingStoreData(JSVM_Env env, void *data,
     size_t backingStoreSize, size_t offset, size_t arrayBufferSize, JSVM_Value *result) {
-    if (result) *result = allocValue(jsvm_make_undefined());
+    if (result) *result = allocValue(jsvm_create_external_arraybuffer((int)(reinterpret_cast<uintptr_t>(data) + offset), (int)arrayBufferSize));
     return JSVM_OK;
 }
 

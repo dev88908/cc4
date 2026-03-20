@@ -30,6 +30,11 @@
 // clang-format off
 // NOLINTBEGIN(misc-include-cleaner, bugprone-easily-swappable-parameters)
 #pragma once
+#if defined(__clang__)
+    #pragma clang diagnostic push
+    #pragma clang diagnostic ignored "-Wnontrivial-memcall"
+    #pragma clang diagnostic ignored "-Wdeprecated-builtins"
+#endif
 #include <boost/graph/adjacency_iterator.hpp>
 #include <boost/graph/graph_traits.hpp>
 #include <boost/graph/properties.hpp>
@@ -1290,5 +1295,8 @@ inline hash_t hash<cc::render::RasterPass>::operator()(const cc::render::RasterP
 
 } // namespace ccstd
 
+#if defined(__clang__)
+    #pragma clang diagnostic pop
+#endif
 // NOLINTEND(misc-include-cleaner, bugprone-easily-swappable-parameters)
 // clang-format on

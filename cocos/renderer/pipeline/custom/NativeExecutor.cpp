@@ -22,6 +22,10 @@
  THE SOFTWARE.
 ****************************************************************************/
 
+#if defined(__clang__)
+    #pragma clang diagnostic push
+    #pragma clang diagnostic ignored "-Wdeprecated-builtins"
+#endif
 #include <boost/graph/depth_first_search.hpp>
 #include <boost/graph/filtered_graph.hpp>
 #include "FGDispatcherGraphs.h"
@@ -1428,3 +1432,7 @@ void NativePipeline::executeRenderGraph(const RenderGraph& rg) {
 } // namespace render
 
 } // namespace cc
+
+#if defined(__clang__)
+    #pragma clang diagnostic pop
+#endif

@@ -57,6 +57,10 @@
     #include "platform/openharmony/napi/NapiPromiseBridge.h"
 #endif
 
+#if CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN
+    #include <emscripten.h>
+#endif
+
 extern void jsb_register_ADPF(se::Object *); // NOLINT
 
 using namespace cc; // NOLINT
@@ -480,9 +484,13 @@ static bool getOrCreatePlainObject_r(const char *name, se::Object *parent, se::O
 }
 
 static bool js_performance_now(se::State &s) { // NOLINT
+#if CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN
+    s.rval().setDouble(emscripten_get_now());
+#else
     auto now = std::chrono::steady_clock::now();
     auto micro = std::chrono::duration_cast<std::chrono::microseconds>(now - se::ScriptEngine::getInstance()->getStartTime()).count();
     s.rval().setDouble(static_cast<double>(micro) * 0.001);
+#endif
     return true;
 }
 SE_BIND_FUNC(js_performance_now)
@@ -1611,9 +1619,14 @@ bool jsb_register_global_variables(se::Object *global) { // NOLINT
     global->defineFunction("__isObjectValid", _SE(JSB_isObjectValid));
     global->defineFunction("__exit", _SE(JSB_exit));
 
+#if CC_PLATFORM != CC_PLATFORM_EMSCRIPTEN
+    // On Emscripten the JSVM global IS the browser's globalThis, which already
+    // has a native performance.now().  Overwriting it would cause infinite
+    // recursion: js_performance_now → emscripten_get_now → performance.now → JSVM wrapper → ...
     se::HandleObject performanceObj(se::Object::createPlainObject());
     performanceObj->defineFunction("now", _SE(js_performance_now));
     global->setProperty("performance", se::Value(performanceObj));
+#endif
 
 #if CC_PLATFORM == CC_PLATFORM_OPENHARMONY
     se::HandleObject ohObj(se::Object::createPlainObject());

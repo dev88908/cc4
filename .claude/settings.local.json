@@ -4,7 +4,10 @@
       "Bash(cmake:*)",
       "Bash(xcodebuild:*)",
       "Bash(xattr:*)",
-      "Bash(cd:*)"
+      "Bash(cd:*)",
+      "Bash(dir \"D:\\\\work\\\\tokenNoFlash\\\\WasmTest\")",
+      "Bash(mkdir -p \"D:/work/tokenNoFlash/WasmTest/build/wasm/data\")",
+      "Bash(cp -r \"D:/work/tokenNoFlash/WasmTest/build/windows/data/\"* \"D:/work/tokenNoFlash/WasmTest/build/wasm/data/\")"
     ]
   }
 }

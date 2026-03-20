@@ -23,6 +23,8 @@
 ****************************************************************************/
 #ifdef __clang__
     #pragma clang diagnostic ignored "-Wshorten-64-to-32"
+    #pragma clang diagnostic ignored "-Wnontrivial-memcall"
+    #pragma clang diagnostic ignored "-Wdeprecated-builtins"
 #endif
 #include <algorithm>
 #include <boost/graph/adjacency_list.hpp>

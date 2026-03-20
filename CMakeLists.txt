@@ -48,6 +48,11 @@ cc_set_if_undefined(USE_AR_ENGINE            OFF)
 cc_set_if_undefined(USE_PLUGINS              ON)
 cc_set_if_undefined(USE_OCCLUSION_QUERY      ON)
 cc_set_if_undefined(USE_DEBUG_RENDERER       ON)
+if(EMSCRIPTEN)
+    set(USE_DEBUG_RENDERER OFF)   # no FreeType in wasm build
+    set(USE_EDIT_BOX OFF)          # no EditBox impl for wasm yet
+    set(USE_PHYSICS_PHYSX OFF)     # no PhysX wasm lib in this build
+endif()
 cc_set_if_undefined(USE_GEOMETRY_RENDERER    ON)
 cc_set_if_undefined(USE_WEBP                 ON)
 cc_set_if_undefined(NET_MODE                  0) # 0 is client
@@ -409,6 +414,11 @@ NO_WERROR   cocos/audio/common/utils/primitives.cpp
             cocos/audio/oalsoft/AudioPlayer.h
             cocos/audio/ohos/FsCallback.h
             cocos/audio/ohos/FsCallback.cpp
+        )
+    elseif(EMSCRIPTEN)
+        cocos_source_files(
+            cocos/audio/emscripten/AudioEngine-emscripten.cpp
+            cocos/audio/emscripten/AudioEngine-emscripten.h
         )
     elseif(APPLE)
         cocos_source_files(
@@ -1147,6 +1157,10 @@ if(NOT APPLE AND USE_SOCKET)
     cocos_source_files(
         NO_WERROR    cocos/network/WebSocket-okhttp.cpp
     )
+    elseif(EMSCRIPTEN)
+    cocos_source_files(
+        NO_WERROR    cocos/network/WebSocket-emscripten.cpp
+    )
     else()
     cocos_source_files(
         NO_WERROR    cocos/network/WebSocket-libwebsockets.cpp
@@ -1844,7 +1858,7 @@ if(CC_USE_GLES2)
 endif()
 
 if(CC_USE_GLES3)
-    cocos_source_files(
+    set(GLES3_SOURCES
                      cocos/renderer/gfx-gles3/GLES3Buffer.cpp
                      cocos/renderer/gfx-gles3/GLES3Buffer.h
                      cocos/renderer/gfx-gles3/GLES3CommandBuffer.cpp
@@ -1891,6 +1905,10 @@ if(CC_USE_GLES3)
                      cocos/renderer/gfx-gles3/states/GLES3Sampler.cpp
                      cocos/renderer/gfx-gles3/states/GLES3Sampler.h
     )
+    if(EMSCRIPTEN)
+        list(APPEND GLES3_SOURCES cocos/renderer/gfx-gles3/GLES3EmscriptenStubs.cpp)
+    endif()
+    cocos_source_files(${GLES3_SOURCES})
 endif()
 
 if(CC_USE_METAL)
@@ -2260,8 +2278,8 @@ cocos_source_files(
 
 )
 
-# FreeTypeFont is used in DebugRenderer currently
-if (USE_DEBUG_RENDERER)
+# FreeTypeFont is used in DebugRenderer currently (exclude on Emscripten: no freetype in external/wasm)
+if (USE_DEBUG_RENDERER AND NOT EMSCRIPTEN)
 cocos_source_files(
     cocos/core/assets/FreeTypeFont.h
     cocos/core/assets/FreeTypeFont.cpp
@@ -3138,14 +3156,19 @@ cocos_source_files(
 )
 
 #### storage
-if(NOT ANDROID)
+if(ANDROID)
     cocos_source_files(
-                     cocos/storage/local-storage/LocalStorage.cpp
+                     cocos/storage/local-storage/LocalStorage-android.cpp
+    )
+elseif(EMSCRIPTEN)
+    cocos_source_files(
+                     cocos/storage/local-storage/LocalStorage-emscripten.cpp
                      cocos/storage/local-storage/LocalStorage.h
     )
 else()
     cocos_source_files(
-                     cocos/storage/local-storage/LocalStorage-android.cpp
+                     cocos/storage/local-storage/LocalStorage.cpp
+                     cocos/storage/local-storage/LocalStorage.h
     )
 endif()
 
@@ -3819,6 +3842,20 @@ elseif(LINUX)
     endif()
     target_link_libraries(${ENGINE_NAME} PUBLIC
         ${LINUX_GRAPHIC_LIBS}
+        ${CC_EXTERNAL_LIBS}
+    )
+elseif(EMSCRIPTEN)
+    target_compile_options(${ENGINE_NAME} PUBLIC
+        "SHELL:-s USE_LIBJPEG=1"
+        "SHELL:-s USE_LIBPNG=1"
+        "SHELL:-s USE_ZLIB=1"
+    )
+    target_link_options(${ENGINE_NAME} PUBLIC
+        "SHELL:-s USE_LIBJPEG=1"
+        "SHELL:-s USE_LIBPNG=1"
+        "SHELL:-s USE_ZLIB=1"
+    )
+    target_link_libraries(${ENGINE_NAME} PUBLIC
         ${CC_EXTERNAL_LIBS}
     )
 endif()

@@ -32,6 +32,7 @@
  * ========================= !DO NOT CHANGE THE FOLLOWING SECTION MANUALLY! =========================
  */
 
+#if !defined(__EMSCRIPTEN__)
 /* EGLW_GENERATE_EGL_DEFINITION */
 PFNEGLGETPROCADDRESSPROC eglGetProcAddress;
 
@@ -368,10 +369,12 @@ PFNEGLCREATEWAYLANDBUFFERFROMIMAGEWLPROC eglCreateWaylandBufferFromImageWL;
  * node tools/gles-wrangler-generator/generate.js
  * ========================= !DO NOT CHANGE THE ABOVE SECTION MANUALLY! =========================
  */
+#endif /* !defined(__EMSCRIPTEN__) */
+
 #endif
 
 void eglwLoadProcs(PFNEGLWLOADPROC eglwLoad) {
-#if (CC_PLATFORM != CC_PLATFORM_IOS)
+#if (CC_PLATFORM != CC_PLATFORM_IOS) && !defined(__EMSCRIPTEN__)
     /**
      * ========================= !DO NOT CHANGE THE FOLLOWING SECTION MANUALLY! =========================
      * The following section is auto-generated from EGL spec by running:
@@ -414,7 +417,7 @@ void eglwLoadProcs(PFNEGLWLOADPROC eglwLoad) {
     eglSwapInterval = reinterpret_cast<PFNEGLSWAPINTERVALPROC>(eglwLoad("eglSwapInterval"));
 
     /* EGL_VERSION_1_2 */
-    eglBindAPI = reinterpret_cast<PFNEGLBINDAPIPROC>(eglwLoad("eglBindAPI"));
+        eglBindAPI = reinterpret_cast<PFNEGLBINDAPIPROC>(eglwLoad("eglBindAPI"));
     eglQueryAPI = reinterpret_cast<PFNEGLQUERYAPIPROC>(eglwLoad("eglQueryAPI"));
     eglCreatePbufferFromClientBuffer = reinterpret_cast<PFNEGLCREATEPBUFFERFROMCLIENTBUFFERPROC>(eglwLoad("eglCreatePbufferFromClientBuffer"));
     eglReleaseThread = reinterpret_cast<PFNEGLRELEASETHREADPROC>(eglwLoad("eglReleaseThread"));

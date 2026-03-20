@@ -24,9 +24,14 @@
 
 #pragma once
 
-#define GL_GLES_PROTOTYPES 0
+#if defined(__EMSCRIPTEN__)
+    #define GL_GLES_PROTOTYPES 1
+#else
+    #define GL_GLES_PROTOTYPES 0
+#endif
 #include <GLES3/gl32.h>
 
+#if !defined(__EMSCRIPTEN__)
 /**
  * ========================= !DO NOT CHANGE THE FOLLOWING SECTION MANUALLY! =========================
  * The following section is auto-generated from GLES spec by running:
@@ -284,6 +289,8 @@ extern PFNGLTEXSTORAGE3DMULTISAMPLEPROC glTexStorage3DMultisample;
  * node tools/gles-wrangler-generator/generate.js
  * ========================= !DO NOT CHANGE THE ABOVE SECTION MANUALLY! =========================
  */
+
+#endif /* !defined(__EMSCRIPTEN__) */
 
 using PFNGLES3WLOADPROC = void *(*)(const char *);
 void gles3wLoadProcs(PFNGLES3WLOADPROC gles3wLoad);

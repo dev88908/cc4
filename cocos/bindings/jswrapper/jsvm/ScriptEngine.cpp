@@ -65,6 +65,17 @@ bool JSB_console_format_log(State& s, cc::LogLevel level, int msgIndex = 0) {
     if (msgIndex < 0)
         return false;
 
+    // Re-entrancy guard: Emscripten heap resize logs via console.warn, which triggers
+    // toStringForce() -> allocation -> another heap resize -> infinite recursion.
+    static thread_local bool s_inFormatLog = false;
+    if (s_inFormatLog)
+        return true;
+    s_inFormatLog = true;
+    struct Guard {
+        bool *p;
+        ~Guard() { *p = false; }
+    } guard{&s_inFormatLog};
+
     const auto& args = s.args();
     int argc = (int)args.size();
     if ((argc - msgIndex) == 1) {
@@ -75,7 +86,7 @@ bool JSB_console_format_log(State& s, cc::LogLevel level, int msgIndex = 0) {
         size_t pos;
         for (int i = (msgIndex+1); i < argc; ++i) {
             pos = msg.find("%");
-            if (pos != std::string::npos && pos != (msg.length()-1) && 
+            if (pos != std::string::npos && pos != (msg.length()-1) &&
                 (msg[pos+1] == 'd' || msg[pos+1] == 's' || msg[pos+1] == 'f')) {
                     msg.replace(pos, 2, args[i].toStringForce());
                 } else {
@@ -88,7 +99,7 @@ bool JSB_console_format_log(State& s, cc::LogLevel level, int msgIndex = 0) {
 }
 
 bool JSB_console_log(State& s) {
-    JSB_console_format_log(s, cc::LogLevel::LEVEL_DEBUG);
+    JSB_console_format_log(s, cc::LogLevel::INFO);
     __oldConsoleLog.toObject()->call(s.args(), s.thisObject());
     return true;
 }
@@ -327,19 +338,21 @@ bool ScriptEngine::start() {
     if (!init()) {
         return false;
     }
-        // debugger
+        // debugger (disabled on Emscripten: inspector not applicable in browser, avoids log flood)
+#if CC_PLATFORM != CC_PLATFORM_EMSCRIPTEN
     if (isDebuggerEnabled()) {
         if(_debuggerServerAddr == "0.0.0.0") {
-            OH_JSVM_OpenInspector(_env, "localhost", _debuggerServerPort);    
+            OH_JSVM_OpenInspector(_env, "localhost", _debuggerServerPort);
         } else {
             OH_JSVM_OpenInspector(_env, _debuggerServerAddr.c_str(), _debuggerServerPort);
         }
         SE_LOGD("Debugger listening..., visit [ http://localhost:%d/json ] to configuration debugging information and copy the devtoolsFrontendUrl value to the browser!", _debuggerServerPort);
-        
+
         if(_isWaitForConnect) {
             OH_JSVM_WaitForDebugger(_env, true);
         }
     }
+#endif
 
     se::AutoHandleScope hs;
 

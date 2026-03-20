@@ -29,11 +29,17 @@
         #define EGL_NO_X11 1
     #endif
 
-    #define EGL_EGL_PROTOTYPES 0
+    #if defined(__EMSCRIPTEN__)
+        /* Emscripten: use EMSDK-provided EGL/GL directly, no wrangler */
+        #define EGL_EGL_PROTOTYPES 1
+    #else
+        #define EGL_EGL_PROTOTYPES 0
+    #endif
     #include <EGL/egl.h>
     #include <EGL/eglext.h>
     #include <EGL/eglplatform.h>
 
+#if !defined(__EMSCRIPTEN__)
 /**
  * ========================= !DO NOT CHANGE THE FOLLOWING SECTION MANUALLY! =========================
  * The following section is auto-generated from EGL spec by running:
@@ -377,6 +383,8 @@ extern PFNEGLCREATEWAYLANDBUFFERFROMIMAGEWLPROC eglCreateWaylandBufferFromImageW
  * node tools/gles-wrangler-generator/generate.js
  * ========================= !DO NOT CHANGE THE ABOVE SECTION MANUALLY! =========================
  */
+
+#endif /* !defined(__EMSCRIPTEN__) */
 
 #endif
 

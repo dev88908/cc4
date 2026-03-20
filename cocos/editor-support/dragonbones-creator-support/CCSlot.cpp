@@ -230,7 +230,7 @@ void CCSlot::_updateFrame() {
                 vertexIndices[5] = 2;
             }
 
-            memcpy(worldVerts, triangles.verts, triangles.vertCount * sizeof(middleware::V3F_T2F_C4B));
+            memcpy(static_cast<void*>(worldVerts), triangles.verts, triangles.vertCount * sizeof(middleware::V3F_T2F_C4B));
 
             _visibleDirty = true;
             _blendModeDirty = true; // Relpace texture will override blendMode and color.

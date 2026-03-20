@@ -67,6 +67,43 @@ static ccstd::string removeFileExt(const ccstd::string &filePath) {
     return filePath;
 }
 
+static bool shouldTraceWasmScript(const ccstd::string &filePath) {
+#if CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN
+    return filePath == "main.js" || filePath == "/main.js";
+#else
+    CC_UNUSED(filePath);
+    return false;
+#endif
+}
+
+static ccstd::string makeTraceSnippet(const ccstd::string &content) {
+    constexpr size_t kMaxSnippetLength = 160;
+    ccstd::string snippet = content.substr(0, std::min(content.size(), kMaxSnippetLength));
+    for (char &ch : snippet) {
+        if (ch == '\n' || ch == '\r' || ch == '\t') {
+            ch = ' ';
+        }
+    }
+    return snippet;
+}
+
+static ccstd::string makeTraceHexPrefix(const ccstd::string &content) {
+    constexpr size_t kMaxHexBytes = 32;
+    static constexpr char kHexDigits[] = "0123456789ABCDEF";
+    const size_t byteCount = std::min(content.size(), kMaxHexBytes);
+    ccstd::string hex;
+    hex.reserve(byteCount * 3);
+    for (size_t i = 0; i < byteCount; ++i) {
+        const unsigned char byte = static_cast<unsigned char>(content[i]);
+        if (i > 0) {
+            hex.push_back(' ');
+        }
+        hex.push_back(kHexDigits[(byte >> 4U) & 0x0FU]);
+        hex.push_back(kHexDigits[byte & 0x0FU]);
+    }
+    return hex;
+}
+
 #if CC_PLATFORM != CC_PLATFORM_EMSCRIPTEN
 static int selectPort(int port) {
     struct sockaddr_in addr;
@@ -158,8 +195,16 @@ void jsb_init_file_operation_delegate() { //NOLINT
 
         delegate.onGetStringFromFile = [](const ccstd::string &path) -> ccstd::string {
             CC_ASSERT(!path.empty());
+            const bool traceWasmScript = shouldTraceWasmScript(path);
 
             ccstd::string byteCodePath = removeFileExt(path) + BYTE_CODE_FILE_EXT;
+            if (traceWasmScript) {
+                CC_LOG_INFO("[WASM Debug] onGetStringFromFile request: path=%s, fullPath=%s, rawExists=%s, bytecodeExists=%s",
+                            path.c_str(),
+                            FileUtils::getInstance()->fullPathForFilename(path).c_str(),
+                            FileUtils::getInstance()->isFileExist(path) ? "YES" : "NO",
+                            FileUtils::getInstance()->isFileExist(byteCodePath) ? "YES" : "NO");
+            }
             if (FileUtils::getInstance()->isFileExist(byteCodePath)) {
                 Data fileData = FileUtils::getInstance()->getDataFromFile(byteCodePath);
 
@@ -189,11 +234,34 @@ void jsb_init_file_operation_delegate() { //NOLINT
                 }
                 ccstd::string ret(reinterpret_cast<const char *>(data), dataLen);
                 free(data);
+                if (traceWasmScript) {
+                    CC_LOG_INFO("[WASM Debug] onGetStringFromFile bytecode hit: path=%s, len=%d, hasThrow=%s, hasTest=%s, hex=%s, prefix=%s",
+                                path.c_str(),
+                                static_cast<int>(ret.size()),
+                                ret.find("throw new Error") != ccstd::string::npos ? "YES" : "NO",
+                                ret.find("test in main.js") != ccstd::string::npos ? "YES" : "NO",
+                                makeTraceHexPrefix(ret).c_str(),
+                                makeTraceSnippet(ret).c_str());
+                }
                 return ret;
             }
 
             if (FileUtils::getInstance()->isFileExist(path)) {
-                return FileUtils::getInstance()->getStringFromFile(path);
+                ccstd::string ret = FileUtils::getInstance()->getStringFromFile(path);
+                if (traceWasmScript) {
+                    CC_LOG_INFO("[WASM Debug] onGetStringFromFile raw hit: path=%s, len=%d, hasThrow=%s, hasTest=%s, hex=%s, prefix=%s",
+                                path.c_str(),
+                                static_cast<int>(ret.size()),
+                                ret.find("throw new Error") != ccstd::string::npos ? "YES" : "NO",
+                                ret.find("test in main.js") != ccstd::string::npos ? "YES" : "NO",
+                                makeTraceHexPrefix(ret).c_str(),
+                                makeTraceSnippet(ret).c_str());
+                }
+                return ret;
+            }
+            if (traceWasmScript) {
+                CC_LOG_ERROR("[WASM Debug] onGetStringFromFile missing: path=%s, fullPath=%s",
+                             path.c_str(), FileUtils::getInstance()->fullPathForFilename(path).c_str());
             }
             SE_LOGE("ScriptEngine::onGetStringFromFile %s not found, possible missing file.\n", path.c_str());
             return "";
@@ -203,14 +271,27 @@ void jsb_init_file_operation_delegate() { //NOLINT
             CC_ASSERT(!path.empty());
             ccstd::string byteCodePath = removeFileExt(path) + BYTE_CODE_FILE_EXT;
             if (FileUtils::getInstance()->isFileExist(byteCodePath)) {
-                return FileUtils::getInstance()->fullPathForFilename(byteCodePath);
+                ccstd::string fullPath = FileUtils::getInstance()->fullPathForFilename(byteCodePath);
+                if (shouldTraceWasmScript(path)) {
+                    CC_LOG_INFO("[WASM Debug] onGetFullPath bytecode: path=%s -> %s", path.c_str(), fullPath.c_str());
+                }
+                return fullPath;
             }
-            return FileUtils::getInstance()->fullPathForFilename(path);
+            ccstd::string fullPath = FileUtils::getInstance()->fullPathForFilename(path);
+            if (shouldTraceWasmScript(path)) {
+                CC_LOG_INFO("[WASM Debug] onGetFullPath raw: path=%s -> %s", path.c_str(), fullPath.c_str());
+            }
+            return fullPath;
         };
 
         delegate.onCheckFileExist = [](const ccstd::string &path) -> bool {
             CC_ASSERT(!path.empty());
-            return FileUtils::getInstance()->isFileExist(path);
+            bool exists = FileUtils::getInstance()->isFileExist(path);
+            if (shouldTraceWasmScript(path)) {
+                CC_LOG_INFO("[WASM Debug] onCheckFileExist: path=%s, exists=%s, fullPath=%s",
+                            path.c_str(), exists ? "YES" : "NO", FileUtils::getInstance()->fullPathForFilename(path).c_str());
+            }
+            return exists;
         };
 
         CC_ASSERT(delegate.isValid());

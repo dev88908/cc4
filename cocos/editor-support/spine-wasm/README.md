@@ -81,6 +81,17 @@ ninja
 
 ---
 
+## Full Rebuild (Same EMSDK as Project)
+
+To rebuild Spine WASM with the **same EMSDK** as the rest of the project (avoid version/build mismatch):
+
+- **Windows**: From `cocos/editor-support/spine-wasm` run:
+  ```bat
+  build-rebuild-spine-wasm.bat
+  ```
+  The script cleans `temp`, uses the same EMSDK as `tools/simulator/frameworks/runtime-src/build-wasm.bat`, runs CMake + Ninja, and copies `spine.wasm` and `spine.wasm.js` to `external/emscripten/spine`.
+- Override EMSDK path with environment variable `EMSDK_ROOT` if needed.
+
 ## Key Notes
 
 1. **Version Compatibility**:  

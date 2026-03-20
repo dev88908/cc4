@@ -33,11 +33,12 @@ SE_HOT JSVM_Value jsbFunctionWrapper(JSVM_Env env, JSVM_CallbackInfo info, se_fu
     JSVM_Status status;
     bool ret = false;
     JSVM_Value _this;
-    se::ValueArray seArgs;
-    seArgs.reserve(15);
     size_t argc = 15;
     JSVM_Value args[15];
     NODE_API_CALL(status, env, OH_JSVM_GetCbInfo(env, info, &argc, args, &_this, NULL));
+
+    se::ValueArray seArgs;
+    seArgs.reserve(argc);
 
     void* nativeThisObject = nullptr;
     status = OH_JSVM_Unwrap(env, _this, &nativeThisObject);
@@ -66,11 +67,11 @@ SE_HOT JSVM_Value jsbConstructorWrapper(JSVM_Env env, JSVM_CallbackInfo info, se
     JSVM_Status status;
     bool ret = false;
     JSVM_Value _this;
-    se::ValueArray seArgs;
-    seArgs.reserve(10);
     size_t argc = 10;
     JSVM_Value args[10];
     NODE_API_CALL(status, env, OH_JSVM_GetCbInfo(env, info, &argc, args, &_this, NULL));
+    se::ValueArray seArgs;
+    seArgs.reserve(argc);
     if (!se::ScriptEngine::getInstance()->_needCallConstructor()) {
         return _this;
     }
@@ -132,7 +133,7 @@ SE_HOT JSVM_Value jsbSetterWrapper(JSVM_Env env, JSVM_CallbackInfo info, se_func
     NODE_API_CALL(status, env, OH_JSVM_GetCbInfo(env, info, &argc, args, &_this, nullptr));
     se::internal::jsToSeValue(args[0], &data);
     se::ValueArray args2;
-    args2.reserve(10);
+    args2.reserve(1);
     args2.push_back(std::move(data));
     void* nativeThisObject = nullptr;
     status = OH_JSVM_Unwrap(env, _this, &nativeThisObject);

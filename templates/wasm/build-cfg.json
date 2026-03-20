@@ -1,0 +1,44 @@
+{
+    "copy_resources": [
+        {
+            "from": "src",
+            "to": "src"
+        },
+        {
+            "from": "assets",
+            "to": "assets"
+        },
+        {
+            "from": "remote",
+            "to": "remote"
+        },
+        {
+            "from": "res",
+            "to": "res"
+        },
+        {
+            "from": "subpackages",
+            "to": "subpackages"
+        },
+        {
+            "from": "cocos-js",
+            "to": "cocos-js"
+        },
+        {
+            "from": "main.js",
+            "to": ""
+        },
+        {
+            "from": "application.js",
+            "to": ""
+        },
+        {
+            "from": "project.json",
+            "to": ""
+        },
+        {
+            "from": "jsb-adapter",
+            "to": "jsb-adapter"
+        }
+    ]
+}

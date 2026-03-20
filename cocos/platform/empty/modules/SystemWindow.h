@@ -44,6 +44,9 @@ public:
      */
     void setCursorEnabled(bool value) override;
 
+    bool createWindow(const char* title, int x, int y, int w, int h, int flags) override;
+    bool createWindow(const char* title, int w, int h, int flags) override;
+
     int init();
     void pollEvent(bool* quit);
 

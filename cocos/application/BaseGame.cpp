@@ -50,7 +50,7 @@ int BaseGame::init() {
     ADPFManager::getInstance().initialize();
 #endif
 
-#if CC_PLATFORM == CC_PLATFORM_WINDOWS || CC_PLATFORM == CC_PLATFORM_LINUX || CC_PLATFORM == CC_PLATFORM_QNX || CC_PLATFORM == CC_PLATFORM_MACOS
+#if CC_PLATFORM == CC_PLATFORM_WINDOWS || CC_PLATFORM == CC_PLATFORM_LINUX || CC_PLATFORM == CC_PLATFORM_QNX || CC_PLATFORM == CC_PLATFORM_MACOS || CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN
     // override default value
     //_windowInfo.x      = _windowInfo.x == -1 ? 0 : _windowInfo.x;
     //_windowInfo.y      = _windowInfo.y == -1 ? 0 : _windowInfo.y;
@@ -66,6 +66,10 @@ int BaseGame::init() {
     #if CC_PLATFORM == CC_PLATFORM_WINDOWS
         info.x = _windowInfo.x == -1 ? 50 : _windowInfo.x; // 50 meams move window a little for now
         info.y = _windowInfo.y == -1 ? 50 : _windowInfo.y; // same above
+    #elif CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN
+        info.x = _windowInfo.x == -1 ? 0 : _windowInfo.x;
+        info.y = _windowInfo.y == -1 ? 0 : _windowInfo.y;
+        info.externalHandle = nullptr; // Emscripten uses Module.canvas, no native handle
     #else
         info.x = _windowInfo.x == -1 ? 0 : _windowInfo.x;
         info.y = _windowInfo.y == -1 ? 0 : _windowInfo.y;

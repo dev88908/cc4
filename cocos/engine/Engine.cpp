@@ -76,6 +76,9 @@ bool setCanvasCallback(se::Object *global) {
     const se::AutoHandleScope scope;
     se::ScriptEngine *se = se::ScriptEngine::getInstance();
     auto *window = CC_GET_MAIN_SYSTEM_WINDOW();
+    if (!window) {
+        return true; // no window yet (e.g. headless), skip jsb.window setup
+    }
     auto handler = window->getWindowHandle();
     auto viewSize = window->getViewSize();
     auto dpr = cc::BasePlatform::getPlatform()->getInterface<cc::IScreen>()->getDevicePixelRatio();

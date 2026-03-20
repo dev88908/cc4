@@ -87,13 +87,14 @@ add_executable(${APP_NAME} ${SPINE_CORE_SRC} ${COCOS_ADAPTER_SRC})
 
 # -s EMBIND_AOT=0 -s MALLOC=emmalloc
 set(EMS_LINK_FLAGS "${SPINE_EXTRA_FLAGS} ${EVAL_CTOR_FLAG} -s VERBOSE=${VERBOSE_LOG} -s WASM=${BUILD_WASM} -s INITIAL_MEMORY=33554432 -s ALLOW_MEMORY_GROWTH=1 -s DYNAMIC_EXECUTION=0 -s ERROR_ON_UNDEFINED_SYMBOLS=0 ${ENABLE_MEMORY_PROFILING} \
-        -flto --no-entry --bind -s USE_ES6_IMPORT_META=0 -s EXPORT_ES6=1 -s MODULARIZE=1 -s EXPORT_NAME='spineWasm' \
+        -flto --no-entry --bind -s EXPORT_ES6=1 -s MODULARIZE=1 -s EXPORT_NAME='spineWasm' \
         -s ENVIRONMENT=web -s FILESYSTEM=0 -s NO_EXIT_RUNTIME=1 -s LLD_REPORT_UNDEFINED \
-        -s MIN_SAFARI_VERSION=110000 \
+        -s MIN_SAFARI_VERSION=120200 \
         -s EXPORTED_FUNCTIONS=['_spineListenerCallBackFromJS','_spineTrackListenerCallback'] \
         --js-library ../library_spine.js \
         --closure=${ENABLE_CLOSURE_COMPILER} \
         --closure-args=--externs=../library_spine_externs.js")
 
 
-set_target_properties(${APP_NAME} PROPERTIES CXX_STANDARD 11 LINK_FLAGS ${EMS_LINK_FLAGS})
+# Emscripten embind (bind.h/wire.h/val.h) requires C++17 or newer
+set_target_properties(${APP_NAME} PROPERTIES CXX_STANDARD 17 LINK_FLAGS ${EMS_LINK_FLAGS})

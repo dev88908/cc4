@@ -22,6 +22,10 @@
  THE SOFTWARE.
 ****************************************************************************/
 
+#if defined(__clang__)
+    #pragma clang diagnostic push
+    #pragma clang diagnostic ignored "-Wdeprecated-builtins"
+#endif
 #include "core/utils/IDGenerator.h"
 #include "base/Random.h"
 #include "boost/uuid/uuid.hpp"
@@ -49,3 +53,7 @@ ccstd::string IDGenerator::getNewId() {
     return _prefix + std::to_string(++_id);
 }
 } // namespace cc
+
+#if defined(__clang__)
+    #pragma clang diagnostic pop
+#endif

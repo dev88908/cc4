@@ -7,26 +7,54 @@ require("<%= polyfillsBundleFile %>");
 window.self = window;
 require("<%= systemJsBundleFile %>");
 
-const importMapJson = jsb.fileUtils.getStringFromFile("<%= importMapFile%>");
-const importMap = JSON.parse(importMapJson);
-System.warmup({
-    importMap,
-    importMapUrl: '<%= importMapFile%>',
-    defaultHandler: (urlNoSchema) => {
-        require(urlNoSchema.startsWith('/') ? urlNoSchema.substr(1) : urlNoSchema);
-    },
-});
+const importMapFile = "<%= importMapFile%>";
 
-System.import('<%= applicationJs %>')
-.then(({ Application }) => {
-    return new Application();
-}).then((application) => {
-    return System.import('cc').then((cc) => {
-        require('jsb-adapter/engine-adapter.js');
-        return application.init(cc);
-    }).then(() => {
-        return application.start();
+function loadImportMap(callback) {
+    if (jsb.fileUtils && typeof jsb.fileUtils.readJsonFile === 'function') {
+        jsb.fileUtils.readJsonFile(importMapFile, (err, json) => {
+            callback(err, json);
+        });
+        return;
+    }
+
+    if (jsb.fileUtils && typeof jsb.fileUtils.getStringFromFile === 'function') {
+        try {
+            const importMapJson = jsb.fileUtils.getStringFromFile(importMapFile);
+            callback(null, JSON.parse(importMapJson));
+        } catch (err) {
+            callback(err, null);
+        }
+        return;
+    }
+
+    callback(new Error(`No supported fileUtils API for ${importMapFile}`), null);
+}
+
+loadImportMap((err, importMap) => {
+    if (err) {
+        console.error(err.toString() + ', stack: ' + err.stack);
+        return;
+    }
+
+    System.warmup({
+        importMap,
+        importMapUrl: importMapFile,
+        defaultHandler: (urlNoSchema) => {
+            require(urlNoSchema.startsWith('/') ? urlNoSchema.substr(1) : urlNoSchema);
+        },
     });
-}).catch((err) => {
-    console.error(err.toString() + ', stack: ' + err.stack);
+
+    System.import('<%= applicationJs %>')
+    .then(({ Application }) => {
+        return new Application();
+    }).then((application) => {
+        return System.import('cc').then((cc) => {
+            require('jsb-adapter/engine-adapter.js');
+            return application.init(cc);
+        }).then(() => {
+            return application.start();
+        });
+    }).catch((importErr) => {
+        console.error(importErr.toString() + ', stack: ' + importErr.stack);
+    });
 });

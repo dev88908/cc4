@@ -2,7 +2,14 @@
 #define DRAGONBONES_JSON_DATA_PARSER_H
 
 #include "DataParser.h"
+#if defined(__clang__)
+    #pragma clang diagnostic push
+    #pragma clang diagnostic ignored "-Wnontrivial-memcall"
+#endif
 #include "json/document.h"
+#if defined(__clang__)
+    #pragma clang diagnostic pop
+#endif
 
 DRAGONBONES_NAMESPACE_BEGIN
 

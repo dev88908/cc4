@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Emscripten .data 预览与编辑</title>
+  <style>
+    :root {
+      --bg: #1a1d23;
+      --panel: #242830;
+      --border: #3d4450;
+      --text: #e6e8ef;
+      --muted: #8b92a5;
+      --accent: #5b9cf6;
+      --accent-dim: #3d6dad;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      background: var(--panel);
+    }
+    header h1 {
+      margin: 0;
+      font-size: 1rem;
+      font-weight: 600;
+      margin-right: 12px;
+    }
+    label { font-size: 12px; color: var(--muted); }
+    input[type="text"] {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 6px 10px;
+      border-radius: 6px;
+      min-width: 180px;
+    }
+    button {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      padding: 6px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    button:hover { background: var(--accent-dim); }
+    button.secondary {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+    button.secondary:hover { border-color: var(--accent); }
+    main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: minmax(220px, 28%) 1fr;
+      min-height: 0;
+    }
+    @media (max-width: 768px) {
+      main { grid-template-columns: 1fr; grid-template-rows: 200px 1fr; }
+    }
+    #fileList {
+      border-right: 1px solid var(--border);
+      overflow: auto;
+      padding: 8px;
+      background: #1e2128;
+    }
+    #fileList ul { list-style: none; margin: 0; padding: 0; }
+    #fileList li {
+      padding: 8px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      word-break: break-all;
+      border: 1px solid transparent;
+    }
+    #fileList li:hover { background: var(--panel); }
+    #fileList li.active {
+      background: rgba(91, 156, 246, 0.15);
+      border-color: var(--accent);
+    }
+    #fileList .meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    #editorPanel {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      padding: 10px;
+      gap: 8px;
+    }
+    #editorToolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+    #editorToolbar label { display: flex; align-items: center; gap: 6px; }
+    textarea#content {
+      flex: 1;
+      min-height: 200px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 8px;
+      padding: 12px;
+      font-family: "Cascadia Code", "Consolas", monospace;
+      font-size: 13px;
+      line-height: 1.45;
+      resize: none;
+    }
+    #status {
+      font-size: 12px;
+      color: var(--muted);
+      padding: 4px 0;
+    }
+    #status.error { color: #f87171; }
+    #hint {
+      font-size: 11px;
+      color: var(--muted);
+      max-width: 720px;
+      line-height: 1.5;
+    }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>.data 资源包工具</h1>
+    <div>
+      <label>数据文件 (.data)<br />
+        <input type="text" id="dataName" placeholder="例如 WasmTest.data" />
+      </label>
+    </div>
+    <div>
+      <label>元数据（可选 .metadata / .js）<br />
+        <input type="text" id="metaName" placeholder="留空则尝试自动解析同目录 .js" />
+      </label>
+    </div>
+    <button type="button" id="btnLoad">加载</button>
+    <button type="button" id="btnPickData" class="secondary">选择 .data…</button>
+    <button type="button" id="btnPickMeta" class="secondary">选择元数据…</button>
+    <button type="button" id="btnSave" disabled>保存</button>
+    <input type="file" id="pickData" accept=".data,*/*" class="hidden" />
+    <input type="file" id="pickMeta" accept=".metadata,.js,.json,application/javascript,text/javascript,*/*" class="hidden" />
+  </header>
+  <p id="hint" style="margin:8px 16px 0;">
+    说明：支持三种元数据——① <strong>内嵌</strong>：整个 <code>.data</code> 前部为 JSON（可有 UTF-8 BOM），后为拼接二进制；也可为 4 字节小端 JSON 长度 + JSON + 二进制。② 独立 <code>.metadata</code> 或 <strong><code>WasmTest.js</code></strong> 等：从其中 <code>loadPackage({...})</code> 提取（兼容 <strong>压缩后的 JS 对象字面量</strong>，键可不带引号）。
+    URL：<code>?data=xxx.data</code>、<code>?meta=</code>（留空则先试内嵌再试同目录元数据）。保存时：内嵌包只下载一个 <code>.data</code>；纯二进制包另存 <code>.js.metadata</code>。
+  </p>
+  <main>
+    <aside id="fileList">
+      <p id="listPlaceholder" style="color:var(--muted);font-size:13px;">加载 .data 后显示文件列表</p>
+      <ul id="filesUl" class="hidden"></ul>
+    </aside>
+    <section id="editorPanel">
+      <div id="editorToolbar">
+        <span id="currentFile" style="font-size:13px;color:var(--muted);">未选择文件</span>
+        <label><input type="checkbox" id="hexMode" /> 十六进制编辑</label>
+        <label><input type="checkbox" id="utf8Mode" checked /> 文本按 UTF-8</label>
+      </div>
+      <textarea id="content" spellcheck="false" disabled placeholder="点击左侧文件查看内容…"></textarea>
+      <div id="status"></div>
+    </section>
+  </main>
+  <script>
+(function () {
+  'use strict';
+
+  /** 生成 build-wasm.js 拷贝时替换：默认与可执行名同名的 .data */
+  var DEFAULT_DATA_FILE = '__DEFAULT_DATA_FILE__';
+
+  var state = {
+    dataBuffer: null,
+    metadata: null,
+    dataFileBase: '',
+    files: [],
+    edits: Object.create(null),
+    currentIndex: -1,
+    loadedFromPick: false,
+    pickedDataName: '',
+    pickedMetaName: '',
+    /** 通过「选择元数据」读入的文本（便于 file:// 无 fetch） */
+    pickedMetaText: null,
+    /** 元数据是否在 .data 内：'leadingJson' | 'le32' | null */
+    embeddedFormat: null,
+    /** 内嵌 JSON 结束后、二进制负载前的原始字节（含换行），写回时保留 */
+    embeddedSeparator: null,
+    /** 内嵌 JSON 之前的原始字节（如 UTF-8 BOM、前导空白） */
+    embeddedBytesBeforeJson: null,
+  };
+
+  var els = {
+    dataName: document.getElementById('dataName'),
+    metaName: document.getElementById('metaName'),
+    btnLoad: document.getElementById('btnLoad'),
+    btnPickData: document.getElementById('btnPickData'),
+    btnPickMeta: document.getElementById('btnPickMeta'),
+    btnSave: document.getElementById('btnSave'),
+    pickData: document.getElementById('pickData'),
+    pickMeta: document.getElementById('pickMeta'),
+    filesUl: document.getElementById('filesUl'),
+    listPlaceholder: document.getElementById('listPlaceholder'),
+    content: document.getElementById('content'),
+    currentFile: document.getElementById('currentFile'),
+    status: document.getElementById('status'),
+    hexMode: document.getElementById('hexMode'),
+    utf8Mode: document.getElementById('utf8Mode'),
+  };
+
+  function setStatus(msg, isError) {
+    els.status.textContent = msg || '';
+    els.status.className = isError ? 'error' : '';
+  }
+
+  function parseQuery() {
+    var q = new URLSearchParams(window.location.search);
+    return {
+      data: q.get('data') || '',
+      meta: q.get('meta') || '',
+    };
+  }
+
+  /**
+   * 在 JS 源码中从 openBrace 起找与第一个 { 配对的 }（跳过 '...'、"..." 内字符，避免误判）
+   */
+  function findMatchingBraceInJsSource(s, openBraceIndex) {
+    var depth = 0;
+    var inStr = false;
+    var strQ = '';
+    var esc = false;
+    for (var i = openBraceIndex; i < s.length; i++) {
+      var c = s[i];
+      if (inStr) {
+        if (esc) {
+          esc = false;
+          continue;
+        }
+        if (c === '\\') {
+          esc = true;
+          continue;
+        }
+        if (c === strQ) inStr = false;
+        continue;
+      }
+      if (c === '"' || c === "'") {
+        inStr = true;
+        strQ = c;
+        continue;
+      }
+      if (c === '{') depth++;
+      else if (c === '}') {
+        depth--;
+        if (depth === 0) return i;
+      }
+    }
+    return -1;
+  }
+
+  /**
+   * 从 Emscripten / Cocos 打包后的 .js 中提取 loadPackage 参数对象。
+   * 支持标准 JSON（file_packager）与压缩后的 JS 对象字面量（键无引号，如 files:[{filename:"/a",start:0,end:1}]）。
+   */
+  function extractLoadPackageMetadata(jsText) {
+    var needle = 'loadPackage(';
+    var idx = jsText.lastIndexOf(needle);
+    if (idx === -1) return null;
+    idx += needle.length;
+    while (idx < jsText.length && /\s/.test(jsText[idx])) idx++;
+    if (jsText[idx] !== '{') return null;
+    var start = idx;
+    var end = findMatchingBraceInJsSource(jsText, start);
+    if (end < 0) return null;
+    var slice = jsText.slice(start, end + 1);
+    try {
+      return JSON.parse(slice);
+    } catch (eJson) {
+      try {
+        var fn = new Function('"use strict";return (' + slice + ')');
+        var meta = fn();
+        return meta;
+      } catch (eFn) {
+        return null;
+      }
+    }
+  }
+
+  function validateMetadata(meta) {
+    if (!meta || !Array.isArray(meta.files)) return false;
+    for (var i = 0; i < meta.files.length; i++) {
+      var f = meta.files[i];
+      if (typeof f.filename !== 'string' || typeof f.start !== 'number' || typeof f.end !== 'number') return false;
+    }
+    return true;
+  }
+
+  function isWs(b) {
+    return b === 0x20 || b === 0x09 || b === 0x0a || b === 0x0d;
+  }
+
+  /** 跳过 UTF-8 BOM 与空白 */
+  function skipBomAndWs(u8, i) {
+    if (i + 2 < u8.length && u8[i] === 0xef && u8[i + 1] === 0xbb && u8[i + 2] === 0xbf) {
+      i += 3;
+    }
+    while (i < u8.length && isWs(u8[i])) i++;
+    return i;
+  }
+
+  /**
+   * 从 u8[start] 必须是 '{' 起，找配对的 '}'（忽略字符串内括号）
+   * @returns 配对 '}' 的下标，或 -1
+   */
+  function findMatchingJsonObjectEnd(u8, start) {
+    var depth = 0;
+    var inStr = false;
+    var esc = false;
+    for (var i = start; i < u8.length; i++) {
+      var b = u8[i];
+      if (inStr) {
+        if (esc) {
+          esc = false;
+          continue;
+        }
+        if (b === 0x5c) esc = true;
+        else if (b === 0x22) inStr = false;
+        continue;
+      }
+      if (b === 0x22) {
+        inStr = true;
+        continue;
+      }
+      if (b === 0x7b) depth++;
+      else if (b === 0x7d) {
+        depth--;
+        if (depth === 0) return i;
+      }
+    }
+    return -1;
+  }
+
+  /**
+   * 校验 meta.files 的 start/end 是否落在负载长度 plen 内，且与 remote_package_size 一致
+   */
+  function checkPayloadLayout(meta, plen) {
+    if (meta.files.length === 0) return false;
+    var last = meta.files[meta.files.length - 1];
+    if (last.end > plen || last.start < 0 || last.start > last.end) return false;
+    for (var i = 0; i < meta.files.length; i++) {
+      var f = meta.files[i];
+      if (f.end > plen || f.start < 0) return false;
+    }
+    if (typeof meta.remote_package_size === 'number') {
+      if (meta.remote_package_size !== plen) return false;
+    } else {
+      if (last.end !== plen) return false;
+    }
+    return true;
+  }
+
+  /**
+   * 尝试从完整 .data 中解析「内嵌 JSON + 二进制负载」
+   * @returns { meta, payloadOffset, format, jsonStart, jsonEndExclusive } | null
+   */
+  function tryParseEmbeddedMetadata(ab) {
+    var u8 = new Uint8Array(ab);
+    if (u8.length < 32) return null;
+
+    var i0 = skipBomAndWs(u8, 0);
+
+    // 1) 前导 JSON：{ ... } 后接空白再接二进制
+    if (i0 < u8.length && u8[i0] === 0x7b) {
+      var jEnd = findMatchingJsonObjectEnd(u8, i0);
+      if (jEnd < 0) return null;
+      var jsonEndExcl = jEnd + 1;
+      var meta;
+      try {
+        var jsonTxt = new TextDecoder('utf-8').decode(u8.subarray(i0, jsonEndExcl));
+        meta = JSON.parse(jsonTxt);
+      } catch (e) {
+        return null;
+      }
+      if (!validateMetadata(meta)) return null;
+      var pStart = jsonEndExcl;
+      while (pStart < u8.length && isWs(u8[pStart])) pStart++;
+      var plen = u8.length - pStart;
+      if (!checkPayloadLayout(meta, plen)) return null;
+      return {
+        meta: meta,
+        payloadOffset: pStart,
+        format: 'leadingJson',
+        jsonStart: i0,
+        jsonEndExclusive: jsonEndExcl,
+        bytesBeforeJson: new Uint8Array(u8.subarray(0, i0)),
+      };
+    }
+
+    // 2) 4 字节小端 JSON 长度 + JSON + 二进制（无中间空白要求）
+    if (u8.length >= 8) {
+      var dv = new DataView(ab);
+      var jsonLen = dv.getUint32(0, true);
+      if (jsonLen >= 20 && jsonLen <= u8.length - 4) {
+        var jsonBegin = 4;
+        if (u8[jsonBegin] === 0x7b) {
+          try {
+            var jsonSlice = u8.subarray(jsonBegin, jsonBegin + jsonLen);
+            var meta2 = JSON.parse(new TextDecoder('utf-8').decode(jsonSlice));
+            if (validateMetadata(meta2)) {
+              var pOff = jsonBegin + jsonLen;
+              var plen2 = u8.length - pOff;
+              if (checkPayloadLayout(meta2, plen2)) {
+                return {
+                  meta: meta2,
+                  payloadOffset: pOff,
+                  format: 'le32',
+                  jsonStart: 0,
+                  jsonEndExclusive: pOff,
+                  bytesBeforeJson: new Uint8Array(0),
+                };
+              }
+            }
+          } catch (e2) { /* */ }
+        }
+      }
+    }
+
+    return null;
+  }
+
+  function getFileSlice(index) {
+    var f = state.files[index];
+    var buf = state.edits[index];
+    if (buf) return buf;
+    return new Uint8Array(state.dataBuffer, f.start, f.end - f.start);
+  }
+
+  async function fetchAsArrayBuffer(url) {
+    var r = await fetch(url);
+    if (!r.ok) throw new Error(r.status + ' ' + r.statusText + ' — ' + url);
+    return r.arrayBuffer();
+  }
+
+  async function fetchAsText(url) {
+    var r = await fetch(url);
+    if (!r.ok) throw new Error(r.status + ' ' + r.statusText + ' — ' + url);
+    return r.text();
+  }
+
+  function baseDir() {
+    var p = window.location.pathname;
+    var slash = p.lastIndexOf('/');
+    return slash >= 0 ? p.slice(0, slash + 1) : '/';
+  }
+
+  function resolveUrl(name) {
+    if (!name) return '';
+    if (/^https?:\/\//i.test(name)) return name;
+    return baseDir() + name.replace(/^\.?\//, '');
+  }
+
+  function bytesToHex(u8) {
+    var lines = [];
+    var line = '';
+    for (var i = 0; i < u8.length; i++) {
+      var h = u8[i].toString(16).padStart(2, '0');
+      if (i && i % 16 === 0) {
+        lines.push(line);
+        line = h;
+      } else {
+        line += (line ? ' ' : '') + h;
+      }
+    }
+    if (line) lines.push(line);
+    return lines.join('\n');
+  }
+
+  function hexToBytes(hexStr) {
+    var cleaned = hexStr.replace(/\s+/g, '');
+    if (cleaned.length % 2 !== 0) throw new Error('十六进制长度须为偶数');
+    var out = new Uint8Array(cleaned.length / 2);
+    for (var i = 0; i < out.length; i++) {
+      out[i] = parseInt(cleaned.slice(i * 2, i * 2 + 2), 16);
+      if (Number.isNaN(out[i])) throw new Error('非法十六进制字符');
+    }
+    return out;
+  }
+
+  function sliceToEditor(u8) {
+    if (els.hexMode.checked) {
+      els.content.value = bytesToHex(u8);
+      return;
+    }
+    if (els.utf8Mode.checked) {
+      try {
+        var dec = new TextDecoder('utf-8', { fatal: true });
+        els.content.value = dec.decode(u8);
+      } catch (e) {
+        els.content.value = bytesToHex(u8);
+        setStatus('非合法 UTF-8，已以十六进制显示。可勾选「十六进制编辑」直接改 hex。', true);
+      }
+    } else {
+      els.content.value = bytesToHex(u8);
+    }
+  }
+
+  function editorToBytes() {
+    var text = els.content.value;
+    if (els.hexMode.checked) return hexToBytes(text);
+    if (els.utf8Mode.checked) {
+      var enc = new TextEncoder();
+      return enc.encode(text);
+    }
+    return hexToBytes(text);
+  }
+
+  function stashCurrentEdit() {
+    if (state.currentIndex < 0) return;
+    try {
+      state.edits[state.currentIndex] = editorToBytes();
+    } catch (e) {
+      setStatus(e.message || String(e), true);
+      throw e;
+    }
+  }
+
+  function renderList() {
+    els.filesUl.innerHTML = '';
+    state.files.forEach(function (f, i) {
+      var li = document.createElement('li');
+      li.dataset.index = String(i);
+      var name = document.createElement('div');
+      name.textContent = f.filename;
+      var meta = document.createElement('div');
+      meta.className = 'meta';
+      meta.textContent = 'offset ' + f.start + ' — ' + f.end + ' (' + (f.end - f.start) + ' bytes)';
+      li.appendChild(name);
+      li.appendChild(meta);
+      li.addEventListener('click', function () {
+        selectFile(i);
+      });
+      els.filesUl.appendChild(li);
+    });
+    els.listPlaceholder.classList.add('hidden');
+    els.filesUl.classList.remove('hidden');
+  }
+
+  function highlightActive() {
+    var items = els.filesUl.querySelectorAll('li');
+    items.forEach(function (li, i) {
+      li.classList.toggle('active', i === state.currentIndex);
+    });
+  }
+
+  function selectFile(index) {
+    try {
+      stashCurrentEdit();
+    } catch (e) {
+      return;
+    }
+    state.currentIndex = index;
+    var f = state.files[index];
+    var u8 = state.edits[index];
+    if (!u8) {
+      u8 = new Uint8Array(getFileSlice(index));
+      state.edits[index] = u8;
+    }
+    els.currentFile.textContent = f.filename;
+    sliceToEditor(u8);
+    els.content.disabled = false;
+    highlightActive();
+    setStatus('');
+  }
+
+  function parseMetaText(t, label) {
+    label = label || '';
+    if (label.endsWith('.metadata') || label.endsWith('.json')) {
+      var meta = JSON.parse(t);
+      if (validateMetadata(meta)) return meta;
+      throw new Error('元数据 JSON 缺少 files[] 或字段不完整');
+    }
+    var fromJs = extractLoadPackageMetadata(t);
+    if (validateMetadata(fromJs)) return fromJs;
+    try {
+      var j = JSON.parse(t);
+      if (validateMetadata(j)) return j;
+    } catch (e) { /* */ }
+    throw new Error('无法解析元数据（需 .metadata JSON 或含 loadPackage({...}) 的 JS）');
+  }
+
+  async function loadMetadata(metaInput, dataNameForGuess) {
+    if (state.pickedMetaText != null && metaInput && metaInput === state.pickedMetaName) {
+      return parseMetaText(state.pickedMetaText, metaInput);
+    }
+    if (metaInput) {
+      var t = await fetchAsText(resolveUrl(metaInput));
+      return parseMetaText(t, metaInput);
+    }
+    var base = dataNameForGuess.replace(/\.data$/i, '');
+    var tryNames = [
+      base + '.js.metadata',
+      base + '.metadata',
+    ];
+    for (var i = 0; i < tryNames.length; i++) {
+      try {
+        var url = resolveUrl(tryNames[i]);
+        var txt = await fetchAsText(url);
+        var meta = JSON.parse(txt);
+        if (validateMetadata(meta)) {
+          setStatus('已自动加载元数据: ' + tryNames[i]);
+          return meta;
+        }
+      } catch (e) { /* continue */ }
+    }
+    var tryJs = base + '.js';
+    try {
+      var jst = await fetchAsText(resolveUrl(tryJs));
+      var mj = extractLoadPackageMetadata(jst);
+      if (validateMetadata(mj)) {
+        setStatus('已自动从 ' + tryJs + ' 解析 loadPackage 元数据');
+        return mj;
+      }
+    } catch (e) { /* */ }
+    throw new Error('未找到元数据：请指定 meta 文件，或将 .js / .js.metadata 放在与 .data 同目录');
+  }
+
+  async function doLoad() {
+    setStatus('加载中…');
+    els.btnSave.disabled = true;
+    state.edits = Object.create(null);
+    state.currentIndex = -1;
+    els.content.value = '';
+    els.content.disabled = true;
+    els.currentFile.textContent = '未选择文件';
+    state.embeddedFormat = null;
+    state.embeddedSeparator = null;
+    state.embeddedBytesBeforeJson = null;
+
+    try {
+      var dataFile = els.dataName.value.trim();
+      if (!dataFile) throw new Error('请填写 .data 文件名或使用「选择 .data」');
+
+      var ab;
+      if (state.loadedFromPick && state.dataBuffer && dataFile === state.pickedDataName) {
+        ab = state.dataBuffer;
+      } else {
+        state.loadedFromPick = false;
+        ab = await fetchAsArrayBuffer(resolveUrl(dataFile));
+        state.pickedDataName = dataFile;
+      }
+
+      state.dataFileBase = dataFile.replace(/\.data$/i, '') || 'package';
+
+      var metaInput = els.metaName.value.trim();
+      var meta;
+      if (metaInput) {
+        meta = await loadMetadata(metaInput, dataFile);
+        state.dataBuffer = ab;
+        state.embeddedFormat = null;
+        state.embeddedSeparator = null;
+        state.embeddedBytesBeforeJson = null;
+      } else {
+        var emb = tryParseEmbeddedMetadata(ab);
+        if (emb) {
+          meta = JSON.parse(JSON.stringify(emb.meta));
+          state.embeddedFormat = emb.format;
+          state.embeddedBytesBeforeJson = emb.bytesBeforeJson
+            ? new Uint8Array(emb.bytesBeforeJson)
+            : new Uint8Array(0);
+          if (emb.format === 'leadingJson') {
+            var u8full = new Uint8Array(ab);
+            state.embeddedSeparator = new Uint8Array(
+              u8full.subarray(emb.jsonEndExclusive, emb.payloadOffset)
+            );
+          } else {
+            state.embeddedSeparator = new Uint8Array(0);
+          }
+          state.dataBuffer = ab.slice(emb.payloadOffset);
+          setStatus(
+            '已从 .data 内解析内嵌元数据（' +
+              emb.format +
+              '），' +
+              meta.files.length +
+              ' 个文件，二进制段 ' +
+              state.dataBuffer.byteLength +
+              ' 字节。'
+          );
+        } else {
+          meta = await loadMetadata('', dataFile);
+          state.dataBuffer = ab;
+        }
+      }
+
+      if (!validateMetadata(meta)) throw new Error('元数据无效');
+
+      var total = meta.remote_package_size;
+      var payloadLen = state.dataBuffer.byteLength;
+      if (typeof total === 'number' && total !== payloadLen) {
+        console.warn('remote_package_size', total, 'payload', payloadLen);
+      }
+
+      state.metadata = meta;
+      state.files = meta.files.slice();
+
+      var last = state.files[state.files.length - 1];
+      if (last && last.end > payloadLen) {
+        throw new Error(
+          '元数据中的文件尾偏移 ' + last.end + ' 超过负载大小 ' + payloadLen + '（可能是 LZ4 或格式不匹配）'
+        );
+      }
+
+      renderList();
+      els.btnSave.disabled = false;
+      if (metaInput || !state.embeddedFormat) {
+        setStatus('已加载 ' + state.files.length + ' 个文件。');
+      }
+    } catch (e) {
+      setStatus(e.message || String(e), true);
+      els.listPlaceholder.classList.remove('hidden');
+      els.filesUl.classList.add('hidden');
+      els.filesUl.innerHTML = '';
+    }
+  }
+
+  function rebuildPackage() {
+    stashCurrentEdit();
+    var meta = JSON.parse(JSON.stringify(state.metadata));
+    var parts = [];
+    var offset = 0;
+    for (var i = 0; i < meta.files.length; i++) {
+      var f = meta.files[i];
+      var chunk = state.edits[i];
+      if (!chunk) {
+        var orig = new Uint8Array(state.dataBuffer, f.start, f.end - f.start);
+        chunk = new Uint8Array(orig);
+        state.edits[i] = chunk;
+      }
+      f.start = offset;
+      f.end = offset + chunk.byteLength;
+      offset += chunk.byteLength;
+      parts.push(chunk);
+    }
+    var out = new Uint8Array(offset);
+    var pos = 0;
+    for (var j = 0; j < parts.length; j++) {
+      out.set(parts[j], pos);
+      pos += parts[j].byteLength;
+    }
+    meta.remote_package_size = offset;
+    return { bytes: out, metadata: meta };
+  }
+
+  function downloadBlob(filename, blob) {
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  function concatUint8Arrays(parts) {
+    var len = 0;
+    for (var p = 0; p < parts.length; p++) len += parts[p].byteLength;
+    var out = new Uint8Array(len);
+    var o = 0;
+    for (var q = 0; q < parts.length; q++) {
+      out.set(parts[q], o);
+      o += parts[q].byteLength;
+    }
+    return out;
+  }
+
+  function doSave() {
+    try {
+      var pack = rebuildPackage();
+      var base = state.dataFileBase;
+      var enc = new TextEncoder();
+      var jsonBytes = enc.encode(JSON.stringify(pack.metadata));
+      var bin = new Uint8Array(pack.bytes);
+
+      if (state.embeddedFormat === 'leadingJson') {
+        var prefix = state.embeddedBytesBeforeJson && state.embeddedBytesBeforeJson.length
+          ? state.embeddedBytesBeforeJson
+          : new Uint8Array(0);
+        var sep =
+          state.embeddedSeparator != null && state.embeddedSeparator.length
+            ? state.embeddedSeparator
+            : new Uint8Array(0);
+        var full = concatUint8Arrays([prefix, jsonBytes, sep, bin]);
+        downloadBlob(base + '.data', new Blob([full], { type: 'application/octet-stream' }));
+        setStatus('已下载内嵌格式 ' + base + '.data（前部 JSON + 分隔 + 二进制）');
+      } else if (state.embeddedFormat === 'le32') {
+        var lenBuf = new ArrayBuffer(4);
+        new DataView(lenBuf).setUint32(0, jsonBytes.length, true);
+        var full2 = concatUint8Arrays([new Uint8Array(lenBuf), jsonBytes, bin]);
+        downloadBlob(base + '.data', new Blob([full2], { type: 'application/octet-stream' }));
+        setStatus('已下载 le32 头格式 ' + base + '.data');
+      } else {
+        downloadBlob(base + '.data', new Blob([bin], { type: 'application/octet-stream' }));
+        downloadBlob(base + '.js.metadata', new Blob([JSON.stringify(pack.metadata)], { type: 'application/json' }));
+        setStatus('已下载 ' + base + '.data 与 ' + base + '.js.metadata');
+      }
+    } catch (e) {
+      setStatus(e.message || String(e), true);
+    }
+  }
+
+  function initDefaults() {
+    var q = parseQuery();
+    var defData = DEFAULT_DATA_FILE.indexOf('__DEFAULT') === 0 ? 'WasmTest.data' : DEFAULT_DATA_FILE;
+    els.dataName.value = q.data || defData;
+    if (q.meta) els.metaName.value = q.meta;
+  }
+
+  els.btnLoad.addEventListener('click', function () {
+    doLoad();
+  });
+  els.btnSave.addEventListener('click', doSave);
+
+  els.btnPickData.addEventListener('click', function () { els.pickData.click(); });
+  els.pickData.addEventListener('change', function () {
+    var f = els.pickData.files[0];
+    if (!f) return;
+    state.loadedFromPick = true;
+    state.pickedDataName = f.name;
+    els.dataName.value = f.name;
+    var r = new FileReader();
+    r.onload = function () {
+      state.dataBuffer = r.result;
+      setStatus('已读取本地文件「' + f.name + '」，请点击「加载」。');
+    };
+    r.readAsArrayBuffer(f);
+  });
+
+  els.btnPickMeta.addEventListener('click', function () { els.pickMeta.click(); });
+  els.pickMeta.addEventListener('change', function () {
+    var f = els.pickMeta.files[0];
+    if (!f) return;
+    state.pickedMetaName = f.name;
+    els.metaName.value = f.name;
+    var r = new FileReader();
+    r.onload = function () {
+      state.pickedMetaText = r.result;
+      setStatus('已读取本地元数据「' + f.name + '」。');
+    };
+    r.readAsText(f, 'utf-8');
+  });
+
+  els.metaName.addEventListener('input', function () {
+    if (els.metaName.value.trim() !== state.pickedMetaName) state.pickedMetaText = null;
+  });
+
+  els.hexMode.addEventListener('change', function () {
+    if (state.currentIndex >= 0) {
+      sliceToEditor(new Uint8Array(getFileSlice(state.currentIndex)));
+    }
+  });
+  els.utf8Mode.addEventListener('change', function () {
+    if (state.currentIndex >= 0 && !els.hexMode.checked) {
+      sliceToEditor(new Uint8Array(getFileSlice(state.currentIndex)));
+    }
+  });
+
+  initDefaults();
+})();
+  </script>
+</body>
+</html>

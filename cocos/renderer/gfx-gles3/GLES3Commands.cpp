@@ -814,7 +814,11 @@ static void renderBufferStorage(GLES3Device *device, GLES3GPUTexture *gpuTexture
         glRenderbuffer = gpuTexture->glRenderbuffer;
     }
     if (gpuTexture->glSamples > 1) {
+#if defined(__EMSCRIPTEN__)
+        GL_CHECK(glRenderbufferStorageMultisample(GL_RENDERBUFFER, gpuTexture->glSamples, gpuTexture->glInternalFmt, gpuTexture->width, gpuTexture->height));
+#else
         GL_CHECK(glRenderbufferStorageMultisampleEXT(GL_RENDERBUFFER, gpuTexture->glSamples, gpuTexture->glInternalFmt, gpuTexture->width, gpuTexture->height));
+#endif
     } else {
         GL_CHECK(glRenderbufferStorage(GL_RENDERBUFFER, gpuTexture->glInternalFmt, gpuTexture->width, gpuTexture->height));
     }
@@ -2575,21 +2579,37 @@ void cmdFuncGLES3MemoryBarrier(GLES3Device * /*device*/, GLbitfield barriers, GL
 }
 
 void cmdFuncGLES3InsertMarker(GLES3Device *device, GLsizei length, const char *marker) {
+#if !defined(__EMSCRIPTEN__)
     if (device->constantRegistry()->debugMarker) {
         glInsertEventMarkerEXT(length, marker);
     }
+#else
+    (void)device;
+    (void)length;
+    (void)marker;
+#endif
 }
 
 void cmdFuncGLES3PushGroupMarker(GLES3Device *device, GLsizei length, const char *marker) {
+#if !defined(__EMSCRIPTEN__)
     if (device->constantRegistry()->debugMarker) {
         glPushGroupMarkerEXT(length, marker);
     }
+#else
+    (void)device;
+    (void)length;
+    (void)marker;
+#endif
 }
 
 void cmdFuncGLES3PopGroupMarker(GLES3Device *device) {
+#if !defined(__EMSCRIPTEN__)
     if (device->constantRegistry()->debugMarker) {
         glPopGroupMarkerEXT();
     }
+#else
+    (void)device;
+#endif
 }
 
 static void uploadBufferData(GLenum target, GLintptr offset, GLsizeiptr length, const void *buffer) {
@@ -3166,12 +3186,16 @@ void GLES3GPUFramebufferObject::finalize(GLES3GPUStateCache *cache) {
         auto *texture = view->gpuTexture;
         if (samples > 1) {
             CC_ASSERT(view->gpuTexture->glTexture != 0);
+#if defined(__EMSCRIPTEN__)
+            GL_CHECK(glFramebufferTexture2D(GL_FRAMEBUFFER, attachment, GL_TEXTURE_2D_MULTISAMPLE, texture->glTexture, 0));
+#else
             GL_CHECK(glFramebufferTexture2DMultisampleEXT(GL_FRAMEBUFFER,
                                                           attachment,
                                                           GL_TEXTURE_2D,
                                                           texture->glTexture,
                                                           view->baseLevel,
                                                           static_cast<GLsizei>(samples)));
+#endif
             return;
         }
 
