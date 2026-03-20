@@ -1,0 +1,3 @@
+[submodule "external"]
+	path = external
+	url = https://github.com/bs202562/cocos-engine-external
