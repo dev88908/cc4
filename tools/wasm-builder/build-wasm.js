@@ -170,19 +170,37 @@ function generateCMakeConfigFile(compileConfig, outputPath) {
     console.log(`[wasm-builder] Generated cfg.cmake at ${outputPath}`);
 }
 
-function validateDataDir(dataDir) {
-    const requiredFiles = [
+function getRequiredDataFiles() {
+    return [
         'main.js',
         'application.js',
         ps.join('src', 'settings.json'),
         ps.join('src', 'system.bundle.js'),
         ps.join('assets', 'main', 'cc.config.json'),
+        ps.join('assets', 'internal', 'index.js'),
         ps.join('src', 'chunks', 'bundle.js'),
         ps.join('jsb-adapter', 'web-adapter.js'),
         ps.join('jsb-adapter', 'engine-adapter.js'),
     ];
+}
 
-    const missingFiles = requiredFiles.filter((relativePath) => !fs.existsSync(ps.join(dataDir, relativePath)));
+function getMissingFiles(rootDir, requiredFiles) {
+    return requiredFiles.filter((relativePath) => !fs.existsSync(ps.join(rootDir, relativePath)));
+}
+
+function isValidWasmDataSource(rootDir) {
+    if (!rootDir || !fs.existsSync(rootDir)) {
+        return false;
+    }
+    return getMissingFiles(rootDir, [
+        'main.js',
+        ps.join('assets', 'main', 'cc.config.json'),
+        ps.join('assets', 'internal', 'index.js'),
+    ]).length === 0;
+}
+
+function validateDataDir(dataDir) {
+    const missingFiles = getMissingFiles(dataDir, getRequiredDataFiles());
     if (missingFiles.length > 0) {
         throw new Error(
             `[wasm-builder] Incomplete wasm data directory at ${dataDir}. Missing: ${missingFiles.join(', ')}`
@@ -359,7 +377,7 @@ async function copyWindowsBuildData(opts, paths) {
     ];
 
     for (const srcRoot of srcCandidates) {
-        if (srcRoot && fs.existsSync(srcRoot) && fs.existsSync(ps.join(srcRoot, 'main.js'))) {
+        if (isValidWasmDataSource(srcRoot)) {
             console.log(`[wasm-builder] Copying data from ${srcRoot} to ${paths.dataDir}`);
             fs.emptyDirSync(paths.dataDir);
             await copyResourcesFrom(srcRoot, paths.dataDir, copyResources);

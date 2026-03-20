@@ -79,33 +79,47 @@ getEffectShader(
     const EffectAsset &effect, const IPassInfo &pass) {
     const auto &programName = pass.program;
     auto passID = INVALID_ID;
-    if (pass.pass) {
+    // optional<string> may hold "" from deserialization; treat as unset and use "default".
+    if (pass.pass && !pass.pass->empty()) {
         passID = locate(INVALID_ID, *pass.pass, lg);
     } else {
         passID = locate(INVALID_ID, "default", lg);
     }
     if (passID == INVALID_ID) {
-        CC_LOG_ERROR("Invalid render pass");
+        if (pass.pass && !pass.pass->empty()) {
+            CC_LOG_ERROR("Invalid render pass '%s' for effect '%s', program '%s'",
+                pass.pass->c_str(), effect._name.c_str(), programName.c_str());
+        } else {
+            CC_LOG_ERROR("Invalid render pass 'default' for effect '%s', program '%s' (layout graph mismatch or pipeline not initialized?)",
+                effect._name.c_str(), programName.c_str());
+        }
         return {INVALID_ID, INVALID_ID, INVALID_ID, nullptr, INVALID_ID};
     }
 
     auto subpassID = INVALID_ID;
-    if (pass.subpass) {
+    if (pass.subpass && !pass.subpass->empty()) {
         subpassID = locate(passID, *pass.subpass, lg);
         if (subpassID == INVALID_ID) {
-            CC_LOG_ERROR("Invalid render subpass");
+            CC_LOG_ERROR("Invalid render subpass '%s' for effect '%s', program '%s'",
+                pass.subpass->c_str(), effect._name.c_str(), programName.c_str());
             return {INVALID_ID, INVALID_ID, INVALID_ID, nullptr, INVALID_ID};
         }
     }
 
     auto phaseID = INVALID_ID;
-    if (pass.phase) {
+    if (pass.phase && !pass.phase->empty()) {
         phaseID = locate(subpassID == INVALID_ID ? passID : subpassID, *pass.phase, lg);
     } else {
         phaseID = locate(subpassID == INVALID_ID ? passID : subpassID, "default", lg);
     }
     if (phaseID == INVALID_ID) {
-        CC_LOG_ERROR("Invalid render phase");
+        if (pass.phase && !pass.phase->empty()) {
+            CC_LOG_ERROR("Invalid render phase '%s' for effect '%s', program '%s'",
+                pass.phase->c_str(), effect._name.c_str(), programName.c_str());
+        } else {
+            CC_LOG_ERROR("Invalid render phase 'default' for effect '%s', program '%s'",
+                effect._name.c_str(), programName.c_str());
+        }
         return {INVALID_ID, INVALID_ID, INVALID_ID, nullptr, INVALID_ID};
     }
 

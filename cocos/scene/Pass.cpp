@@ -589,18 +589,18 @@ void Pass::doInit(const IPassInfoFull &info, bool /*copyDefines*/ /* = false */)
             _subpassID = info.subpassID;
             _phaseID = info.phaseID;
         } else {
-            if (info.pass) {
+            // optional<string> may hold "" from JS deserialization; treat as unset.
+            if (info.pass && !info.pass->empty()) {
                 _passID = rendering->getPassID(*info.pass);
             } else {
                 _passID = rendering->getPassID("default");
             }
             CC_ENSURES(_passID != INVALID_ID);
-            if (info.subpass) {
-                CC_EXPECTS(!info.subpass->empty());
+            if (info.subpass && !info.subpass->empty()) {
                 _subpassID = rendering->getSubpassID(_passID, *info.subpass);
                 CC_ENSURES(_subpassID != INVALID_ID);
             }
-            if (info.phase) {
+            if (info.phase && !info.phase->empty()) {
                 _phaseID = rendering->getPhaseID(getSubpassOrPassID(), *info.phase);
             } else {
                 _phaseID = rendering->getPhaseID(getSubpassOrPassID(), "default");

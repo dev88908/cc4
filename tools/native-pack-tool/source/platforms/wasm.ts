@@ -12,22 +12,40 @@ interface CopyResource {
     to: string;
 }
 
+function getRequiredDataFiles(): string[] {
+    return [
+        'main.js',
+        'application.js',
+        ps.join('src', 'settings.json'),
+        ps.join('src', 'system.bundle.js'),
+        ps.join('assets', 'main', 'cc.config.json'),
+        ps.join('assets', 'internal', 'index.js'),
+        ps.join('src', 'chunks', 'bundle.js'),
+        ps.join('jsb-adapter', 'web-adapter.js'),
+        ps.join('jsb-adapter', 'engine-adapter.js'),
+    ];
+}
+
+function getMissingFiles(rootDir: string, requiredFiles: string[]): string[] {
+    return requiredFiles.filter((relativePath) => !fs.existsSync(ps.join(rootDir, relativePath)));
+}
+
+function isValidWasmDataSource(rootDir: string): boolean {
+    if (!rootDir || !fs.existsSync(rootDir)) {
+        return false;
+    }
+    return getMissingFiles(rootDir, [
+        'main.js',
+        ps.join('assets', 'main', 'cc.config.json'),
+        ps.join('assets', 'internal', 'index.js'),
+    ]).length === 0;
+}
+
 export class WasmPackTool extends NativePackTool {
     params!: CocosParams<IWasmParams>;
 
     private validateDataDir(dataDir: string): void {
-        const requiredFiles = [
-            'main.js',
-            'application.js',
-            ps.join('src', 'settings.json'),
-            ps.join('src', 'system.bundle.js'),
-            ps.join('assets', 'main', 'cc.config.json'),
-            ps.join('src', 'chunks', 'bundle.js'),
-            ps.join('jsb-adapter', 'web-adapter.js'),
-            ps.join('jsb-adapter', 'engine-adapter.js'),
-        ];
-
-        const missingFiles = requiredFiles.filter((relativePath) => !fs.existsSync(ps.join(dataDir, relativePath)));
+        const missingFiles = getMissingFiles(dataDir, getRequiredDataFiles());
         if (missingFiles.length > 0) {
             throw new Error(
                 `[wasm] Incomplete data directory at ${dataDir}. Missing: ${missingFiles.join(', ')}. ` +
@@ -112,7 +130,7 @@ export class WasmPackTool extends NativePackTool {
         ];
 
         for (const srcRoot of srcCandidates) {
-            if (srcRoot && fs.existsSync(srcRoot) && fs.existsSync(ps.join(srcRoot, 'main.js'))) {
+            if (isValidWasmDataSource(srcRoot)) {
                 console.log(`[wasm] Copying resources from: ${srcRoot}`);
                 await this.copyResourcesFrom(srcRoot, dataDir, copyResources);
                 this.copyBuiltinJsbAdapter(dataDir);

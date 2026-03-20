@@ -28,7 +28,58 @@ const default_1 = require("../base/default");
 const fs = __importStar(require("fs-extra"));
 const ps = __importStar(require("path"));
 const utils_1 = require("../utils");
+function getRequiredDataFiles() {
+    return [
+        'main.js',
+        'application.js',
+        ps.join('src', 'settings.json'),
+        ps.join('src', 'system.bundle.js'),
+        ps.join('assets', 'main', 'cc.config.json'),
+        ps.join('assets', 'internal', 'index.js'),
+        ps.join('src', 'chunks', 'bundle.js'),
+        ps.join('jsb-adapter', 'web-adapter.js'),
+        ps.join('jsb-adapter', 'engine-adapter.js'),
+    ];
+}
+function getMissingFiles(rootDir, requiredFiles) {
+    return requiredFiles.filter((relativePath) => !fs.existsSync(ps.join(rootDir, relativePath)));
+}
+function isValidWasmDataSource(rootDir) {
+    if (!rootDir || !fs.existsSync(rootDir)) {
+        return false;
+    }
+    return getMissingFiles(rootDir, [
+        'main.js',
+        ps.join('assets', 'main', 'cc.config.json'),
+        ps.join('assets', 'internal', 'index.js'),
+    ]).length === 0;
+}
 class WasmPackTool extends default_1.NativePackTool {
+    validateDataDir(dataDir) {
+        const missingFiles = getMissingFiles(dataDir, getRequiredDataFiles());
+        if (missingFiles.length > 0) {
+            throw new Error(`[wasm] Incomplete data directory at ${dataDir}. Missing: ${missingFiles.join(', ')}. ` +
+                `Build/copy the Windows native data output first to avoid packaging a black-screen wasm build.`);
+        }
+    }
+    copyBuiltinJsbAdapter(dataDir) {
+        const adapterDir = ps.join(dataDir, 'jsb-adapter');
+        const sourceDir = ps.join(this.params.enginePath, 'bin', 'adapter', 'native');
+        const requiredFiles = ['web-adapter.js', 'engine-adapter.js'];
+        if (!fs.existsSync(sourceDir)) {
+            console.warn(`[wasm] Builtin jsb-adapter directory not found: ${sourceDir}`);
+            return;
+        }
+        fs.ensureDirSync(adapterDir);
+        for (const fileName of requiredFiles) {
+            const sourcePath = ps.join(sourceDir, fileName);
+            const targetPath = ps.join(adapterDir, fileName);
+            if (fs.existsSync(sourcePath) && !fs.existsSync(targetPath)) {
+                fs.copySync(sourcePath, targetPath);
+                console.log(`[wasm] Copied builtin adapter: ${fileName}`);
+            }
+        }
+    }
     get emsdkPath() {
         var _a;
         const fromParams = (_a = this.params.platformParams) === null || _a === void 0 ? void 0 : _a.emscriptenPath;
@@ -53,7 +104,7 @@ class WasmPackTool extends default_1.NativePackTool {
     }
     /**
      * Copy build resources to buildDir/data, same flow as Windows.
-     * Source priority: Windows build output (build/windows/data) -> buildAssetsDir -> jsb-link -> native.
+     * Source priority: current build output -> Windows build output -> jsb-link -> native.
      */
     async copyResourcesToData() {
         const dataDir = ps.join(this.paths.buildDir, 'data');
@@ -69,15 +120,17 @@ class WasmPackTool extends default_1.NativePackTool {
         }
         const buildRoot = ps.dirname(this.paths.buildDir);
         const srcCandidates = [
-            ps.join(buildRoot, 'windows', 'data'),
             this.paths.buildAssetsDir,
+            ps.join(buildRoot, 'windows', 'data'),
             ps.join(buildRoot, 'jsb-link'),
             ps.join(buildRoot, 'native'),
         ];
         for (const srcRoot of srcCandidates) {
-            if (srcRoot && fs.existsSync(srcRoot) && fs.existsSync(ps.join(srcRoot, 'main.js'))) {
+            if (isValidWasmDataSource(srcRoot)) {
                 console.log(`[wasm] Copying resources from: ${srcRoot}`);
                 await this.copyResourcesFrom(srcRoot, dataDir, copyResources);
+                this.copyBuiltinJsbAdapter(dataDir);
+                this.validateDataDir(dataDir);
                 return;
             }
         }

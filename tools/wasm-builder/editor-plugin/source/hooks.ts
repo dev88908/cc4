@@ -36,7 +36,8 @@ function ensureBuilderOutput(result: IBuildResult) {
         path.join(outputDir, 'application.js'),
         path.join(outputDir, 'src', 'settings.json'),
         path.join(outputDir, 'src', 'system.bundle.js'),
-        path.join(outputDir, 'assets'),
+        path.join(outputDir, 'assets', 'main', 'cc.config.json'),
+        path.join(outputDir, 'assets', 'internal', 'index.js'),
     ];
 
     const hasImportMap = [
